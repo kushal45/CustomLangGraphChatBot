@@ -1,0 +1,196 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+      {
+        "label": "Setup Development Environment",
+        "type": "shell",
+        "command": "python -m venv venv && source venv/bin/activate && pip install -r requirements.txt",
+        "group": "build",
+        "presentation": {
+          "echo": true,
+          "reveal": "always",
+          "focus": false,
+          "panel": "shared"
+        },
+        "problemMatcher": []
+      },
+      {
+        "label": "Run LangGraph Tests",
+        "type": "shell",
+        "command": "pytest tests/ -v --cov=src --cov-report=html",
+        "group": "test",
+        "presentation": {
+          "echo": true,
+          "reveal": "always",
+          "focus": false,
+          "panel": "shared"
+        },
+        "problemMatcher": [
+          "$python"
+        ]
+      },
+      {
+        "label": "Run Code Quality Checks",
+        "type": "shell",
+        "command": "black src/ tests/ && flake8 src/ tests/ && mypy src/",
+        "group": "build",
+        "presentation": {
+          "echo": true,
+          "reveal": "always",
+          "focus": false,
+          "panel": "shared"
+        },
+        "problemMatcher": []
+      },
+      {
+        "label": "Start Development Server",
+        "type": "shell",
+        "command": "uvicorn src.api.main:app --reload --host 0.0.0.0 --port 8000",
+        "group": "build",
+        "presentation": {
+          "echo": true,
+          "reveal": "always",
+          "focus": false,
+          "panel": "shared"
+        },
+        "isBackground": true,
+        "problemMatcher": [
+          {
+            "pattern": [
+              {
+                "regexp": ".",
+                "file": 1,
+                "location": 2,
+                "message": 3
+              }
+            ],
+            "background": {
+              "activeOnStart": true,
+              "beginsPattern": ".",
+              "endsPattern": "."
+            }
+          }
+        ]
+      },
+      {
+        "label": "Test LangGraph Workflow",
+        "type": "shell",
+        "command": "python -m src.tools.test_workflow --repo-url https://github.com/example/repo",
+        "group": "test",
+        "presentation": {
+          "echo": true,
+          "reveal": "always",
+          "focus": false,
+          "panel": "shared"
+        },
+        "problemMatcher": []
+      },
+      {
+        "label": "Generate LangGraph Visualization",
+        "type": "shell",
+        "command": "python -m src.tools.visualize_graph --output graphs/workflow.png",
+        "group": "build",
+        "presentation": {
+          "echo": true,
+          "reveal": "always",
+          "focus": false,
+          "panel": "shared"
+        },
+        "problemMatcher": []
+      },
+      {
+        "label": "Install Pre-commit Hooks",
+        "type": "shell",
+        "command": "pre-commit install",
+        "group": "build",
+        "presentation": {
+          "echo": true,
+          "reveal": "always",
+          "focus": false,
+          "panel": "shared"
+        },
+        "problemMatcher": []
+      },
+      {
+        "label": "Run Security Scan",
+        "type": "shell",
+        "command": "bandit -r src/ -f json -o security-report.json",
+        "group": "test",
+        "presentation": {
+          "echo": true,
+          "reveal": "always",
+          "focus": false,
+          "panel": "shared"
+        },
+        "problemMatcher": []
+      },
+      {
+        "label": "Build Docker Image",
+        "type": "shell",
+        "command": "docker build -t langgraph-code-reviewer:latest .",
+        "group": "build",
+        "presentation": {
+          "echo": true,
+          "reveal": "always",
+          "focus": false,
+          "panel": "shared"
+        },
+        "problemMatcher": []
+      },
+      {
+        "label": "Run Integration Tests",
+        "type": "shell",
+        "command": "pytest tests/integration/ -v --slow",
+        "group": "test",
+        "presentation": {
+          "echo": true,
+          "reveal": "always",
+          "focus": false,
+          "panel": "shared"
+        },
+        "problemMatcher": [
+          "$python"
+        ]
+      },
+      {
+        "label": "Debug LangGraph State",
+        "type": "shell",
+        "command": "python -m src.tools.debug_state --graph-id ${input:graphId} --checkpoint ${input:checkpoint}",
+        "group": "test",
+        "presentation": {
+          "echo": true,
+          "reveal": "always",
+          "focus": false,
+          "panel": "shared"
+        },
+        "problemMatcher": []
+      },
+      {
+        "label": "Monitor GitHub API Usage",
+        "type": "shell",
+        "command": "python -m src.tools.monitor_api_usage",
+        "group": "test",
+        "presentation": {
+          "echo": true,
+          "reveal": "always",
+          "focus": false,
+          "panel": "shared"
+        },
+        "problemMatcher": []
+      }
+    ],
+    "inputs": [
+      {
+        "id": "graphId",
+        "description": "LangGraph ID for debugging",
+        "default": "",
+        "type": "promptString"
+      },
+      {
+        "id": "checkpoint",
+        "description": "Checkpoint ID for state debugging",
+        "default": "",
+        "type": "promptString"
+      }
+    ]
+  }

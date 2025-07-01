@@ -1,0 +1,218 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+      {
+        "name": "Debug LangGraph Workflow",
+        "type": "python",
+        "request": "launch",
+        "program": "${workspaceFolder}/src/main.py",
+        "console": "integratedTerminal",
+        "env": {
+          "PYTHONPATH": "${workspaceFolder}",
+          "LOG_LEVEL": "DEBUG",
+          "GITHUB_TOKEN": "${env:GITHUB_TOKEN}",
+          "OPENAI_API_KEY": "${env:OPENAI_API_KEY}"
+        },
+        "args": [
+          "--repo-url",
+          "https://github.com/example/test-repo",
+          "--debug"
+        ],
+        "justMyCode": false,
+        "stopOnEntry": false
+      },
+      {
+        "name": "Debug FastAPI Server",
+        "type": "python",
+        "request": "launch",
+        "module": "uvicorn",
+        "args": [
+          "src.api.main:app",
+          "--reload",
+          "--host",
+          "0.0.0.0",
+          "--port",
+          "8000",
+          "--log-level",
+          "debug"
+        ],
+        "console": "integratedTerminal",
+        "env": {
+          "PYTHONPATH": "${workspaceFolder}",
+          "LOG_LEVEL": "DEBUG",
+          "GITHUB_TOKEN": "${env:GITHUB_TOKEN}",
+          "OPENAI_API_KEY": "${env:OPENAI_API_KEY}",
+          "WEBHOOK_SECRET": "${env:WEBHOOK_SECRET}"
+        },
+        "justMyCode": false
+      },
+      {
+        "name": "Debug Single Node",
+        "type": "python",
+        "request": "launch",
+        "program": "${workspaceFolder}/src/tools/debug_node.py",
+        "console": "integratedTerminal",
+        "env": {
+          "PYTHONPATH": "${workspaceFolder}",
+          "LOG_LEVEL": "DEBUG"
+        },
+        "args": [
+          "--node",
+          "${input:nodeName}",
+          "--state-file",
+          "${input:stateFile}"
+        ],
+        "justMyCode": false
+      },
+      {
+        "name": "Run Tests with Debugger",
+        "type": "python",
+        "request": "launch",
+        "module": "pytest",
+        "args": [
+          "tests/",
+          "-v",
+          "--capture=no",
+          "--tb=short"
+        ],
+        "console": "integratedTerminal",
+        "env": {
+          "PYTHONPATH": "${workspaceFolder}",
+          "LOG_LEVEL": "DEBUG",
+          "TESTING": "true"
+        },
+        "justMyCode": false
+      },
+      {
+        "name": "Debug Webhook Handler",
+        "type": "python",
+        "request": "launch",
+        "program": "${workspaceFolder}/src/tools/test_webhook.py",
+        "console": "integratedTerminal",
+        "env": {
+          "PYTHONPATH": "${workspaceFolder}",
+          "LOG_LEVEL": "DEBUG",
+          "WEBHOOK_SECRET": "${env:WEBHOOK_SECRET}"
+        },
+        "args": [
+          "--payload-file",
+          "${input:webhookPayload}"
+        ],
+        "justMyCode": false
+      },
+      {
+        "name": "Debug GitHub API Integration",
+        "type": "python",
+        "request": "launch",
+        "program": "${workspaceFolder}/src/tools/test_github_api.py",
+        "console": "integratedTerminal",
+        "env": {
+          "PYTHONPATH": "${workspaceFolder}",
+          "LOG_LEVEL": "DEBUG",
+          "GITHUB_TOKEN": "${env:GITHUB_TOKEN}"
+        },
+        "args": [
+          "--repo-url",
+          "${input:repoUrl}",
+          "--operation",
+          "${input:apiOperation}"
+        ],
+        "justMyCode": false
+      },
+      {
+        "name": "Debug Code Analysis",
+        "type": "python",
+        "request": "launch",
+        "program": "${workspaceFolder}/src/tools/test_analysis.py",
+        "console": "integratedTerminal",
+        "env": {
+          "PYTHONPATH": "${workspaceFolder}",
+          "LOG_LEVEL": "DEBUG"
+        },
+        "args": [
+          "--file-path",
+          "${input:filePath}",
+          "--analysis-type",
+          "${input:analysisType}"
+        ],
+        "justMyCode": false
+      },
+      {
+        "name": "Profile LangGraph Performance",
+        "type": "python",
+        "request": "launch",
+        "program": "${workspaceFolder}/src/tools/profile_workflow.py",
+        "console": "integratedTerminal",
+        "env": {
+          "PYTHONPATH": "${workspaceFolder}",
+          "LOG_LEVEL": "INFO",
+          "PROFILING": "true"
+        },
+        "args": [
+          "--repo-url",
+          "${input:repoUrl}",
+          "--profile-output",
+          "profile_results.json"
+        ],
+        "justMyCode": false
+      }
+    ],
+    "inputs": [
+      {
+        "id": "nodeName",
+        "description": "Name of the LangGraph node to debug",
+        "default": "analyze_code",
+        "type": "promptString"
+      },
+      {
+        "id": "stateFile",
+        "description": "Path to state file for debugging",
+        "default": "debug_state.json",
+        "type": "promptString"
+      },
+      {
+        "id": "webhookPayload",
+        "description": "Path to webhook payload JSON file",
+        "default": "test_payload.json",
+        "type": "promptString"
+      },
+      {
+        "id": "repoUrl",
+        "description": "GitHub repository URL for testing",
+        "default": "https://github.com/example/test-repo",
+        "type": "promptString"
+      },
+      {
+        "id": "apiOperation",
+        "description": "GitHub API operation to test",
+        "default": "get_repo_info",
+        "type": "pickString",
+        "options": [
+          "get_repo_info",
+          "list_files",
+          "get_file_content",
+          "list_commits",
+          "get_pull_requests"
+        ]
+      },
+      {
+        "id": "filePath",
+        "description": "Path to file for analysis testing",
+        "default": "src/main.py",
+        "type": "promptString"
+      },
+      {
+        "id": "analysisType",
+        "description": "Type of code analysis to perform",
+        "default": "complexity",
+        "type": "pickString",
+        "options": [
+          "complexity",
+          "security",
+          "quality",
+          "style",
+          "all"
+        ]
+      }
+    ]
+  }

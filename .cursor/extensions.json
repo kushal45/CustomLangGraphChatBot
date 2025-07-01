@@ -1,0 +1,128 @@
+{
+    "recommendations": [
+      {
+        "id": "ms-python.python",
+        "reason": "Essential for Python development with debugging, IntelliSense, and code formatting"
+      },
+      {
+        "id": "ms-python.pylint",
+        "reason": "Python linting for code quality checks"
+      },
+      {
+        "id": "ms-python.black-formatter",
+        "reason": "Python code formatting with Black"
+      },
+      {
+        "id": "ms-python.isort",
+        "reason": "Import sorting for Python files"
+      },
+      {
+        "id": "ms-python.mypy-type-checker",
+        "reason": "Type checking for Python with mypy"
+      },
+      {
+        "id": "ms-python.flake8",
+        "reason": "Additional Python linting with flake8"
+      },
+      {
+        "id": "charliermarsh.ruff",
+        "reason": "Fast Python linter and formatter"
+      },
+      {
+        "id": "ms-vscode.vscode-json",
+        "reason": "JSON language support for configuration files"
+      },
+      {
+        "id": "redhat.vscode-yaml",
+        "reason": "YAML language support for configuration files"
+      },
+      {
+        "id": "ms-vscode.vscode-docker",
+        "reason": "Docker support for containerization"
+      },
+      {
+        "id": "GitHub.vscode-pull-request-github",
+        "reason": "GitHub integration for pull requests and issues"
+      },
+      {
+        "id": "GitHub.copilot",
+        "reason": "AI pair programming assistant"
+      },
+      {
+        "id": "GitHub.copilot-chat",
+        "reason": "Chat interface for GitHub Copilot"
+      },
+      {
+        "id": "eamodio.gitlens",
+        "reason": "Enhanced Git capabilities and history visualization"
+      },
+      {
+        "id": "ms-vscode.test-adapter-converter",
+        "reason": "Test discovery and execution"
+      },
+      {
+        "id": "littlefoxteam.vscode-python-test-adapter",
+        "reason": "Python test adapter for pytest"
+      },
+      {
+        "id": "ms-vscode.vscode-coverage-gutters",
+        "reason": "Display test coverage in editor gutters"
+      },
+      {
+        "id": "streetsidesoftware.code-spell-checker",
+        "reason": "Spell checking for code and comments"
+      },
+      {
+        "id": "PKief.material-icon-theme",
+        "reason": "Better file icons for project navigation"
+      },
+      {
+        "id": "ms-vscode.vscode-markdown-preview-enhanced",
+        "reason": "Enhanced markdown preview for documentation"
+      },
+      {
+        "id": "DavidAnson.vscode-markdownlint",
+        "reason": "Markdown linting for documentation quality"
+      },
+      {
+        "id": "ms-vscode.vscode-restclient",
+        "reason": "HTTP client for testing API endpoints"
+      },
+      {
+        "id": "humao.rest-client",
+        "reason": "Alternative REST client for API testing"
+      },
+      {
+        "id": "ms-vscode.vscode-thunder-client",
+        "reason": "Lightweight REST API client"
+      },
+      {
+        "id": "ms-python.debugpy",
+        "reason": "Python debugger for advanced debugging features"
+      },
+      {
+        "id": "tamasfe.even-better-toml",
+        "reason": "TOML language support for configuration files"
+      },
+      {
+        "id": "ms-vscode.vscode-dotenv",
+        "reason": "Support for .env files"
+      },
+      {
+        "id": "bradlc.vscode-tailwindcss",
+        "reason": "Tailwind CSS support if using for documentation sites"
+      },
+      {
+        "id": "ms-vscode.vscode-log-viewer",
+        "reason": "Enhanced log file viewing and analysis"
+      },
+      {
+        "id": "ms-vscode.vscode-tree-sitter",
+        "reason": "Better syntax highlighting with Tree-sitter"
+      }
+    ],
+    "unwantedRecommendations": [
+      "ms-python.anaconda-extension-pack",
+      "donjayamanne.python-extension-pack"
+    ]
+  }

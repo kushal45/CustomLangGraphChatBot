@@ -1,0 +1,27 @@
+{
+    "cursor.chat.defaultModel": "claude-3.5-sonnet",
+    "cursor.cpp.enableIntelliSense": true,
+    "cursor.general.enableCodeActions": true,
+    "cursor.autocomplete.enabled": true,
+    "cursor.autocomplete.maxSuggestions": 5,
+    "cursor.general.enableDocumentSymbols": true,
+    "cursor.general.enableWorkspaceSymbols": true,
+    "python.analysis.typeCheckingMode": "basic",
+    "python.linting.enabled": true,
+    "python.linting.pylintEnabled": true,
+    "python.linting.flake8Enabled": true,
+    "python.formatting.provider": "black",
+    "python.defaultInterpreterPath": "./venv/bin/python",
+    "files.associations": {
+      "*.py": "python",
+      "*.yaml": "yaml",
+      "*.yml": "yaml"
+    },
+    "editor.formatOnSave": true,
+    "editor.codeActionsOnSave": {
+      "source.organizeImports": true
+    },
+    "cursor.chat.enableCodeContext": true,
+    "cursor.chat.maxContextLines": 1000,
+    "cursor.general.enableGitIntegration": true
+  }
