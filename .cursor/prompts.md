@@ -1,7 +1,7 @@
 # LangGraph Code Review Chatbot - Project Context
 
 ## Project Overview
-This is a sophisticated code review chatbot built using LangGraph for analyzing GitHub MCP (Model Context Protocol) server repositories. The chatbot performs automated code reviews, identifies potential issues, suggests improvements, and provides detailed feedback on code quality, security, and best practices.
+This is a sophisticated code review chatbot built using LangGraph for analyzing GitHub MCP (Model Context Protocol) server repositories(irrespective of any programming languages written). The chatbot performs automated code reviews, identifies potential issues, suggests improvements, and provides detailed feedback on code quality, security, and best practices.
 
 ## Technology Stack
 - **Framework**: LangGraph for building stateful, multi-agent conversational AI

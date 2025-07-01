@@ -1,0 +1,139 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual environments
+venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+.venv/
+
+# IDE and editors
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Logs
+*.log
+logs/
+*.log.*
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# Environment variables
+.env
+.env.local
+.env.development
+.env.production
+.env.test
+
+# Secrets and credentials
+secrets/
+credentials/
+*.pem
+*.key
+*.crt
+
+# Temporary files and caches
+tmp/
+temp/
+.cache/
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.nox/
+
+# LangGraph specific
+.langgraph/
+langgraph_cache/
+graph_state/
+checkpoints/
+
+# GitHub API cache
+github_cache/
+repo_cache/
+.github_token
+
+# AI model cache
+models/
+embeddings/
+vector_store/
+.chromadb/
+
+# Docker
+.dockerignore
+docker-compose.override.yml
+
+# Jupyter notebooks
+.ipynb_checkpoints/
+*.ipynb
+
+# Test artifacts
+.coverage
+coverage.xml
+*.cover
+.hypothesis/
+
+# Large files that shouldn't be indexed
+*.zip
+*.tar.gz
+*.rar
+*.7z
+*.dmg
+*.iso
+
+# Generated documentation
+docs/_build/
+site/
+
+# Package files
+*.deb
+*.rpm
+*.pkg
+*.dmg
+
+# Backup files
+*.bak
+*.backup
+*.tmp
+
+# Configuration files with sensitive data
+config/production.yml
+config/staging.yml
