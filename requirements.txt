@@ -1,0 +1,36 @@
+# Core framework dependencies
+fastapi
+uvicorn
+pydantic
+langgraph
+langchain
+langchain-core
+
+# AI Provider dependencies (optional - install based on chosen provider)
+langchain-openai  # For OpenAI compatibility
+groq  # For Groq API
+transformers  # For Hugging Face models
+together  # For Together AI
+google-generativeai  # For Google Gemini
+openai  # For OpenAI-compatible APIs
+
+# GitHub integration
+aiohttp
+requests
+
+# Static code analysis tools
+pylint
+flake8
+bandit
+mypy
+
+# File system and repository tools
+GitPython
+
+# Communication tools
+slack-sdk
+
+# Additional utilities
+python-dotenv
+asyncio-throttle
+tenacity

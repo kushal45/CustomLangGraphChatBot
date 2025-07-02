@@ -1,0 +1,244 @@
+name: Comprehensive Test Suite
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+  schedule:
+    # Run tests daily at 2 AM UTC
+    - cron: '0 2 * * *'
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: [3.9, 3.10, 3.11, 3.12]
+        test-category: [unit, integration, performance, api]
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ matrix.python-version }}
+    
+    - name: Cache pip dependencies
+      uses: actions/cache@v3
+      with:
+        path: ~/.cache/pip
+        key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+        restore-keys: |
+          ${{ runner.os }}-pip-
+    
+    - name: Install system dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y git
+        # Install static analysis tools
+        pip install pylint flake8 bandit
+    
+    - name: Install Python dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install pytest pytest-cov pytest-xdist pytest-mock
+        pip install coverage[toml]
+    
+    - name: Set up test environment
+      run: |
+        # Create test environment file
+        echo "GITHUB_TOKEN=${{ secrets.GITHUB_TOKEN }}" >> .env
+        echo "XAI_API_KEY=test-key" >> .env
+        echo "SLACK_WEBHOOK_URL=https://hooks.slack.com/test" >> .env
+        echo "EMAIL_SMTP_SERVER=smtp.test.com" >> .env
+        echo "EMAIL_USERNAME=test@example.com" >> .env
+        echo "EMAIL_PASSWORD=test-password" >> .env
+        echo "JIRA_URL=https://test.atlassian.net" >> .env
+        echo "JIRA_USERNAME=test@example.com" >> .env
+        echo "JIRA_API_TOKEN=test-token" >> .env
+    
+    - name: Run unit tests
+      if: matrix.test-category == 'unit'
+      run: |
+        pytest tests/test_*_tools.py tests/test_registry.py -v \
+          --cov=src --cov=tools \
+          --cov-report=xml --cov-report=term \
+          --tb=short
+    
+    - name: Run integration tests
+      if: matrix.test-category == 'integration'
+      run: |
+        pytest tests/test_workflow_integration.py -v \
+          --cov=src --cov=tools \
+          --cov-report=xml --cov-report=term \
+          --tb=short
+    
+    - name: Run performance tests
+      if: matrix.test-category == 'performance'
+      run: |
+        pytest tests/test_performance.py -v \
+          --tb=short --durations=10
+    
+    - name: Run API tests
+      if: matrix.test-category == 'api'
+      run: |
+        pytest tests/test_api_integration.py tests/test_error_handling.py -v \
+          --cov=src --cov=tools \
+          --cov-report=xml --cov-report=term \
+          --tb=short
+    
+    - name: Upload coverage to Codecov
+      if: matrix.test-category == 'unit' || matrix.test-category == 'integration' || matrix.test-category == 'api'
+      uses: codecov/codecov-action@v3
+      with:
+        file: ./coverage.xml
+        flags: ${{ matrix.test-category }}
+        name: codecov-${{ matrix.python-version }}-${{ matrix.test-category }}
+        fail_ci_if_error: false
+
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: 3.11
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install pylint flake8 black isort mypy
+        pip install -r requirements.txt
+    
+    - name: Run black (code formatting)
+      run: |
+        black --check --diff src/ tools/ tests/
+    
+    - name: Run isort (import sorting)
+      run: |
+        isort --check-only --diff src/ tools/ tests/
+    
+    - name: Run flake8 (style guide)
+      run: |
+        flake8 src/ tools/ tests/ --max-line-length=100 --extend-ignore=E203,W503
+    
+    - name: Run pylint (static analysis)
+      run: |
+        pylint src/ tools/ --disable=C0114,C0115,C0116 --max-line-length=100
+    
+    - name: Run mypy (type checking)
+      run: |
+        mypy src/ tools/ --ignore-missing-imports
+
+  security:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: 3.11
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install bandit safety
+        pip install -r requirements.txt
+    
+    - name: Run bandit (security analysis)
+      run: |
+        bandit -r src/ tools/ -f json -o bandit-report.json || true
+        bandit -r src/ tools/
+    
+    - name: Run safety (dependency security)
+      run: |
+        safety check --json --output safety-report.json || true
+        safety check
+    
+    - name: Upload security reports
+      uses: actions/upload-artifact@v3
+      if: always()
+      with:
+        name: security-reports
+        path: |
+          bandit-report.json
+          safety-report.json
+
+  integration-test:
+    runs-on: ubuntu-latest
+    needs: [test, lint]
+    if: github.event_name == 'pull_request'
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: 3.11
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install pytest pytest-cov
+    
+    - name: Run comprehensive test suite
+      run: |
+        python test_runner.py --pytest-only --quick
+    
+    - name: Validate setup
+      run: |
+        python validate_setup.py
+    
+    - name: Test tool registry
+      run: |
+        python -c "
+        from tools.registry import ToolRegistry, ToolConfig
+        config = ToolConfig()
+        registry = ToolRegistry(config)
+        tools = registry.get_available_tools()
+        print(f'✅ Successfully loaded {len(tools)} tools')
+        assert len(tools) > 20, 'Expected at least 20 tools'
+        "
+
+  build-docs:
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: 3.11
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install pytest pytest-cov
+    
+    - name: Generate test coverage report
+      run: |
+        pytest --cov=src --cov=tools tests/ --cov-report=html
+    
+    - name: Deploy coverage report
+      uses: peaceiris/actions-gh-pages@v3
+      if: github.ref == 'refs/heads/main'
+      with:
+        github_token: ${{ secrets.GITHUB_TOKEN }}
+        publish_dir: ./htmlcov
+        destination_dir: coverage

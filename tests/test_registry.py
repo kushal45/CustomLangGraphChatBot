@@ -1,0 +1,306 @@
+"""Comprehensive unit tests for tool registry and configuration."""
+
+import pytest
+import os
+import tempfile
+import shutil
+from unittest.mock import Mock, patch
+from pathlib import Path
+
+# Import the classes to test
+from tools.registry import ToolRegistry, ToolConfig, detect_repository_type
+
+
+class TestToolConfig:
+    """Test ToolConfig configuration class."""
+    
+    def test_default_config(self):
+        """Test default configuration values."""
+        config = ToolConfig()
+        assert config.enabled_categories == ["filesystem", "analysis", "ai_analysis", "github", "communication"]
+        assert config.max_concurrent_tools == 5
+        assert config.tool_timeout == 300
+        assert config.enable_caching is True
+    
+    def test_config_from_environment(self):
+        """Test configuration from environment variables."""
+        with patch.dict(os.environ, {
+            "TOOL_MAX_CONCURRENT": "10",
+            "TOOL_TIMEOUT": "600",
+            "TOOL_ENABLE_CACHING": "false"
+        }):
+            config = ToolConfig()
+            assert config.max_concurrent_tools == 10
+            assert config.tool_timeout == 600
+            assert config.enable_caching is False
+    
+    def test_config_with_api_keys(self):
+        """Test configuration with various API keys."""
+        with patch.dict(os.environ, {
+            "XAI_API_KEY": "xai-key",
+            "GITHUB_TOKEN": "github-token",
+            "SLACK_BOT_TOKEN": "slack-token"
+        }):
+            config = ToolConfig()
+            assert config.has_xai_key is True
+            assert config.has_github_token is True
+            assert config.has_slack_token is True
+    
+    def test_config_without_api_keys(self):
+        """Test configuration without API keys."""
+        with patch.dict(os.environ, {}, clear=True):
+            config = ToolConfig()
+            assert config.has_xai_key is False
+            assert config.has_github_token is False
+            assert config.has_slack_token is False
+
+
+class TestDetectRepositoryType:
+    """Test repository type detection functionality."""
+    
+    def setup_method(self):
+        """Set up test fixtures."""
+        self.temp_dir = tempfile.mkdtemp()
+    
+    def teardown_method(self):
+        """Clean up test fixtures."""
+        shutil.rmtree(self.temp_dir)
+    
+    def test_detect_python_repository(self):
+        """Test detection of Python repository."""
+        # Create Python files
+        with open(os.path.join(self.temp_dir, "main.py"), "w") as f:
+            f.write("print('Hello, World!')")
+        with open(os.path.join(self.temp_dir, "requirements.txt"), "w") as f:
+            f.write("requests==2.25.1")
+        
+        repo_type = detect_repository_type(self.temp_dir)
+        assert repo_type == "python"
+    
+    def test_detect_javascript_repository(self):
+        """Test detection of JavaScript repository."""
+        # Create JavaScript files
+        with open(os.path.join(self.temp_dir, "index.js"), "w") as f:
+            f.write("console.log('Hello, World!');")
+        with open(os.path.join(self.temp_dir, "package.json"), "w") as f:
+            f.write('{"name": "test-project"}')
+        
+        repo_type = detect_repository_type(self.temp_dir)
+        assert repo_type == "javascript"
+    
+    def test_detect_java_repository(self):
+        """Test detection of Java repository."""
+        # Create Java files
+        os.makedirs(os.path.join(self.temp_dir, "src", "main", "java"))
+        with open(os.path.join(self.temp_dir, "src", "main", "java", "Main.java"), "w") as f:
+            f.write("public class Main { }")
+        with open(os.path.join(self.temp_dir, "pom.xml"), "w") as f:
+            f.write("<project></project>")
+        
+        repo_type = detect_repository_type(self.temp_dir)
+        assert repo_type == "java"
+    
+    def test_detect_mixed_repository(self):
+        """Test detection of mixed language repository."""
+        # Create files for multiple languages
+        with open(os.path.join(self.temp_dir, "main.py"), "w") as f:
+            f.write("print('Hello')")
+        with open(os.path.join(self.temp_dir, "index.js"), "w") as f:
+            f.write("console.log('Hello');")
+        
+        repo_type = detect_repository_type(self.temp_dir)
+        assert repo_type == "mixed"
+    
+    def test_detect_unknown_repository(self):
+        """Test detection of unknown repository type."""
+        # Create files with unknown extensions
+        with open(os.path.join(self.temp_dir, "readme.txt"), "w") as f:
+            f.write("This is a readme")
+        
+        repo_type = detect_repository_type(self.temp_dir)
+        assert repo_type == "unknown"
+    
+    def test_detect_empty_directory(self):
+        """Test detection with empty directory."""
+        repo_type = detect_repository_type(self.temp_dir)
+        assert repo_type == "unknown"
+    
+    def test_detect_nonexistent_directory(self):
+        """Test detection with non-existent directory."""
+        nonexistent = os.path.join(self.temp_dir, "nonexistent")
+        repo_type = detect_repository_type(nonexistent)
+        assert repo_type == "unknown"
+
+
+class TestToolRegistry:
+    """Test ToolRegistry functionality."""
+    
+    def setup_method(self):
+        """Set up test fixtures."""
+        self.config = ToolConfig()
+        self.registry = ToolRegistry(self.config)
+    
+    def test_registry_initialization(self):
+        """Test registry initialization."""
+        assert self.registry.config == self.config
+        assert len(self.registry.tools) > 0
+        assert "filesystem" in self.registry.tools
+        assert "analysis" in self.registry.tools
+    
+    def test_get_available_tools(self):
+        """Test getting available tools."""
+        tools = self.registry.get_available_tools()
+        
+        # Should have tools from enabled categories
+        assert len(tools) > 0
+        
+        # Check that tools have required attributes
+        for tool in tools:
+            assert hasattr(tool, 'name')
+            assert hasattr(tool, 'description')
+            assert hasattr(tool, '_run')
+    
+    def test_get_tools_by_category(self):
+        """Test getting tools by category."""
+        filesystem_tools = self.registry.get_tools_by_category("filesystem")
+        assert len(filesystem_tools) > 0
+        
+        # Check that all tools are from filesystem category
+        for tool in filesystem_tools:
+            assert "file" in tool.name.lower() or "directory" in tool.name.lower() or "git" in tool.name.lower()
+    
+    def test_get_tools_by_invalid_category(self):
+        """Test getting tools by invalid category."""
+        invalid_tools = self.registry.get_tools_by_category("invalid_category")
+        assert len(invalid_tools) == 0
+    
+    def test_get_tool_by_name(self):
+        """Test getting tool by name."""
+        tool = self.registry.get_tool_by_name("File Read Tool")
+        assert tool is not None
+        assert tool.name == "File Read Tool"
+        
+        # Test with non-existent tool
+        non_existent = self.registry.get_tool_by_name("Non Existent Tool")
+        assert non_existent is None
+    
+    def test_registry_with_disabled_categories(self):
+        """Test registry with some categories disabled."""
+        config = ToolConfig()
+        config.enabled_categories = ["filesystem", "analysis"]  # Only enable some categories
+        
+        registry = ToolRegistry(config)
+        tools = registry.get_available_tools()
+        
+        # Should only have tools from enabled categories
+        tool_names = [tool.name for tool in tools]
+        
+        # Should have filesystem and analysis tools
+        assert any("file" in name.lower() for name in tool_names)
+        assert any("pylint" in name.lower() or "flake8" in name.lower() for name in tool_names)
+    
+    @patch.dict(os.environ, {}, clear=True)
+    def test_registry_without_api_keys(self):
+        """Test registry behavior without API keys."""
+        config = ToolConfig()
+        registry = ToolRegistry(config)
+        
+        # Should still have tools that don't require API keys
+        tools = registry.get_available_tools()
+        tool_names = [tool.name for tool in tools]
+        
+        # Should have filesystem tools (no API key required)
+        assert any("file" in name.lower() for name in tool_names)
+        
+        # Should have analysis tools (no API key required)
+        assert any("complexity" in name.lower() for name in tool_names)
+    
+    @patch.dict(os.environ, {"XAI_API_KEY": "test-key"})
+    def test_registry_with_ai_api_key(self):
+        """Test registry behavior with AI API key."""
+        config = ToolConfig()
+        registry = ToolRegistry(config)
+        
+        tools = registry.get_available_tools()
+        tool_names = [tool.name for tool in tools]
+        
+        # Should have AI analysis tools when API key is available
+        assert any("code review" in name.lower() for name in tool_names)
+        assert any("documentation" in name.lower() for name in tool_names)
+    
+    def test_tool_execution_tracking(self):
+        """Test tool execution tracking."""
+        # Get a simple tool for testing
+        tool = self.registry.get_tool_by_name("File Read Tool")
+        assert tool is not None
+        
+        # Check that tool has execution tracking attributes
+        assert hasattr(tool, 'name')
+        assert hasattr(tool, 'description')
+        assert callable(getattr(tool, '_run'))
+    
+    def test_registry_tool_count_by_category(self):
+        """Test counting tools by category."""
+        categories = ["filesystem", "analysis", "ai_analysis", "github", "communication"]
+        
+        for category in categories:
+            if category in self.config.enabled_categories:
+                tools = self.registry.get_tools_by_category(category)
+                assert len(tools) > 0, f"No tools found for category: {category}"
+    
+    def test_registry_tool_uniqueness(self):
+        """Test that all tools have unique names."""
+        tools = self.registry.get_available_tools()
+        tool_names = [tool.name for tool in tools]
+        
+        # Check for duplicate names
+        assert len(tool_names) == len(set(tool_names)), "Duplicate tool names found"
+    
+    def test_registry_tool_descriptions(self):
+        """Test that all tools have descriptions."""
+        tools = self.registry.get_available_tools()
+        
+        for tool in tools:
+            assert hasattr(tool, 'description')
+            assert isinstance(tool.description, str)
+            assert len(tool.description) > 0
+    
+    def test_registry_configuration_validation(self):
+        """Test registry configuration validation."""
+        # Test with invalid configuration
+        invalid_config = ToolConfig()
+        invalid_config.enabled_categories = ["invalid_category"]
+        
+        registry = ToolRegistry(invalid_config)
+        tools = registry.get_available_tools()
+        
+        # Should handle invalid categories gracefully
+        assert isinstance(tools, list)
+    
+    def test_registry_concurrent_access(self):
+        """Test registry thread safety for concurrent access."""
+        import threading
+        
+        results = []
+        
+        def get_tools():
+            tools = self.registry.get_available_tools()
+            results.append(len(tools))
+        
+        # Create multiple threads accessing registry
+        threads = []
+        for _ in range(5):
+            thread = threading.Thread(target=get_tools)
+            threads.append(thread)
+            thread.start()
+        
+        # Wait for all threads to complete
+        for thread in threads:
+            thread.join()
+        
+        # All threads should get the same number of tools
+        assert len(set(results)) == 1, "Inconsistent results from concurrent access"
+
+
+if __name__ == "__main__":
+    pytest.main([__file__])
