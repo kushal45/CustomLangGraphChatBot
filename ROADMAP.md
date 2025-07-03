@@ -58,11 +58,6 @@ This roadmap outlines the key tasks and milestones for building and improving th
     - [x] Support PR-specific analysis with file diffs and changes
     - [x] Implement commit history analysis and file change tracking
     - [x] Add support for branch-specific analysis
-- [ ] **Advanced GitHub Integration Features**
-    - [ ] Add GitHub webhook support for automated reviews
-    - [ ] Implement GitHub issue creation for review findings
-    - [ ] Add support for GitHub Actions integration
-    - [ ] Create GitHub App for enhanced permissions and features
 
 ## Milestone 4: Workflow Integration & Node Enhancement
 - [ ] **Update workflow nodes to use external tools**
@@ -91,6 +86,11 @@ This roadmap outlines the key tasks and milestones for building and improving th
     - [ ] Add webhook support for GitHub events
     - [ ] Implement scheduled analysis and monitoring
     - [ ] Create batch processing capabilities for multiple repositories
+- [ ] **Advanced GitHub Integration Features**
+    - [ ] Add GitHub webhook support for automated reviews
+    - [ ] Implement GitHub issue creation for review findings
+    - [ ] Add support for GitHub Actions integration
+    - [ ] Create GitHub App for enhanced permissions and features
 
 ## Milestone 6: External Tools System (COMPLETED ✅)
 - [x] **GitHub Integration Tools**

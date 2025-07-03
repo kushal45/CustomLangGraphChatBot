@@ -18,6 +18,7 @@ import tempfile
 import subprocess
 import time
 import argparse
+import pytest
 from pathlib import Path
 from typing import Dict, Any, List, Optional, Tuple
 
@@ -184,6 +185,18 @@ def test_tool_registry():
             print(f"      - {warning}")
     
     return registry
+
+
+@pytest.fixture
+def registry():
+    """Create a ToolRegistry instance for testing."""
+    return ToolRegistry()
+
+
+@pytest.fixture
+def test_repo_path(tmp_path):
+    """Create a temporary test repository path."""
+    return str(tmp_path)
 
 
 def test_filesystem_tools(registry: ToolRegistry):

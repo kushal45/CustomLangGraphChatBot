@@ -2,7 +2,7 @@
 
 import pytest
 from fastapi.testclient import TestClient
-from unittest.mock import Mock, patch
+from unittest.mock import Mock, patch, AsyncMock
 
 # Test with minimal imports to isolate the issue
 @pytest.mark.integration
@@ -92,15 +92,30 @@ def test_review_endpoint_with_mock():
     """Test review endpoint with proper mocking."""
     try:
         # Mock the workflow before importing the API
-        with patch('workflow.create_review_workflow') as mock_workflow:
-            mock_workflow_instance = Mock()
+        with patch('api.create_review_workflow') as mock_workflow:
+            # Mock the workflow graph
+            mock_workflow_graph = Mock()
+
+            # Mock the compiled workflow
+            mock_compiled_workflow = AsyncMock()
             mock_final_state = {
-                "analysis_results": {"status": "success"},
+                "analysis_results": {
+                    "static_analysis": {},
+                    "ai_analysis": {},
+                    "security_analysis": {},
+                    "complexity_analysis": None,
+                    "overall_score": 8.5,
+                    "summary": "Test analysis completed",
+                    "recommendations": ["Add more tests"]
+                },
                 "current_step": "completed",
                 "error_message": None
             }
-            mock_workflow_instance.arun.return_value = mock_final_state
-            mock_workflow.return_value = mock_workflow_instance
+            mock_compiled_workflow.ainvoke.return_value = mock_final_state
+
+            # Set up the chain: create_review_workflow() -> graph.compile() -> compiled_workflow
+            mock_workflow_graph.compile.return_value = mock_compiled_workflow
+            mock_workflow.return_value = mock_workflow_graph
             
             from api import app
             client = TestClient(app)

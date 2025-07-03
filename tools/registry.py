@@ -316,8 +316,18 @@ class ToolRegistry:
         if not self.config.github_token:
             validation_results["warnings"].append("GitHub token not configured - GitHub tools will be disabled")
         
-        if not self.config.openai_api_key:
-            validation_results["warnings"].append("OpenAI API key not configured - AI analysis tools will be disabled")
+        # Check if any AI provider API keys are configured (excluding Ollama which is local)
+        has_api_key = any([
+            self.config.groq_api_key,
+            self.config.huggingface_api_key,
+            self.config.together_api_key,
+            self.config.google_api_key,
+            self.config.openrouter_api_key,
+            self.config.xai_api_key,
+            self.config.openai_api_key
+        ])
+        if not has_api_key:
+            validation_results["warnings"].append("No AI provider API key configured - AI analysis tools will use local Ollama if available")
         
         # Check tool availability
         for tool_name in self._tools.keys():

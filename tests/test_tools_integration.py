@@ -127,8 +127,7 @@ class TestStaticAnalysisTools:
     def test_code_complexity_tool(self):
         """Test code complexity analysis."""
         # Create a simple Python file with known complexity
-        python_code = '''
-def simple_function():
+        python_code = '''def simple_function():
     return "hello"
 
 def complex_function(x):
@@ -147,16 +146,17 @@ def complex_function(x):
         
         try:
             tool = CodeComplexityTool()
-            result = tool._run(temp_file)
-            
+            result = tool._run(python_code)
+
             assert "error" not in result
-            assert "functions" in result
-            assert len(result["functions"]) == 2
-            
+            assert "metrics" in result
+            assert result["metrics"]["functions"] == 2
+
             # Check that complex_function has higher complexity
-            complex_func = next(f for f in result["functions"] if f["name"] == "complex_function")
-            simple_func = next(f for f in result["functions"] if f["name"] == "simple_function")
-            
+            function_details = result["metrics"]["function_details"]
+            complex_func = next(f for f in function_details if f["name"] == "complex_function")
+            simple_func = next(f for f in function_details if f["name"] == "simple_function")
+
             assert complex_func["complexity"] > simple_func["complexity"]
         finally:
             os.unlink(temp_file)
@@ -165,8 +165,8 @@ def complex_function(x):
 class TestAIAnalysisTools:
     """Test AI-powered analysis tools."""
     
-    @patch('tools.ai_analysis_tools.ChatOpenAI')
-    def test_code_review_tool_mock(self, mock_openai):
+    @patch('tools.ai_analysis_tools.GenericAILLM')
+    def test_code_review_tool_mock(self, mock_ai_llm):
         """Test code review tool with mocked OpenAI."""
         # Mock the OpenAI response
         mock_chain = Mock()
@@ -185,25 +185,37 @@ class TestAIAnalysisTools:
             "recommendations": ["Add documentation"]
         }
         
-        mock_openai.return_value = Mock()
-        
-        with patch('tools.ai_analysis_tools.JsonOutputParser') as mock_parser:
-            mock_parser.return_value = Mock()
-            
-            with patch.object(CodeReviewTool, '_create_review_chain', return_value=mock_chain):
-                tool = CodeReviewTool()
-                
-                query = json.dumps({
-                    "code": "def hello(): return 'world'",
-                    "file_path": "test.py",
-                    "language": "python"
-                })
-                
-                result = tool._run(query)
-                
-                assert "error" not in result
-                assert "overall_score" in result
-                assert result["overall_score"] == 8.5
+        # Mock the AI LLM to return a JSON response
+        mock_ai_instance = Mock()
+        mock_ai_instance.invoke.return_value = json.dumps({
+            "overall_score": 8.5,
+            "issues": [
+                {
+                    "type": "style",
+                    "severity": "low",
+                    "line": 1,
+                    "message": "Consider adding a docstring",
+                    "suggestion": "Add a docstring to describe the function"
+                }
+            ],
+            "strengths": ["Clean and readable code"],
+            "recommendations": ["Add documentation"]
+        })
+        mock_ai_llm.return_value = mock_ai_instance
+
+        tool = CodeReviewTool()
+
+        query = json.dumps({
+            "code": "def hello(): return 'world'",
+            "language": "python"
+        })
+
+        result = tool._run(query)
+
+        assert "error" not in result
+        assert "review" in result
+        assert "tool" in result
+        assert result["tool"] == "ai_code_review"
 
 
 class TestIntegrationFlow:
@@ -262,30 +274,43 @@ def get_file_size(filepath):
             
             # Test complexity analysis
             complexity_tool = registry.get_tool("code_complexity")
-            complexity_result = complexity_tool._run(str(project_path / "main.py"))
-            
+            # Read the file content first
+            with open(project_path / "main.py", 'r') as f:
+                main_py_content = f.read()
+            complexity_result = complexity_tool._run(main_py_content)
+
             assert "error" not in complexity_result
-            assert "functions" in complexity_result
-            assert len(complexity_result["functions"]) >= 2
+            assert "metrics" in complexity_result
+            assert complexity_result["metrics"]["functions"] >= 2
     
     def test_tool_configuration_validation(self):
         """Test tool configuration and validation."""
-        # Test with minimal configuration
-        config = ToolConfig()
-        registry = ToolRegistry(config)
-        
-        validation = registry.validate_configuration()
-        
-        assert "valid" in validation
-        assert "warnings" in validation
-        assert "enabled_tools" in validation
-        assert "disabled_tools" in validation
-        
-        # Should have warnings about missing API keys
-        assert len(validation["warnings"]) > 0
-        
-        # Should still have some enabled tools (filesystem tools don't need API keys)
-        assert len(validation["enabled_tools"]) > 0
+        import os
+        from unittest.mock import patch
+
+        # Test with minimal configuration (no environment variables)
+        env_vars_to_clear = [
+            'GITHUB_TOKEN', 'GROQ_API_KEY', 'HUGGINGFACE_API_KEY',
+            'TOGETHER_API_KEY', 'GOOGLE_API_KEY', 'OPENROUTER_API_KEY',
+            'XAI_API_KEY', 'OPENAI_API_KEY'
+        ]
+
+        with patch.dict(os.environ, {var: '' for var in env_vars_to_clear}, clear=False):
+            config = ToolConfig()
+            registry = ToolRegistry(config)
+
+            validation = registry.validate_configuration()
+
+            assert "valid" in validation
+            assert "warnings" in validation
+            assert "enabled_tools" in validation
+            assert "disabled_tools" in validation
+
+            # Should have warnings about missing API keys
+            assert len(validation["warnings"]) > 0
+
+            # Should still have some enabled tools (filesystem tools don't need API keys)
+            assert len(validation["enabled_tools"]) > 0
 
 
 # Utility functions for manual testing

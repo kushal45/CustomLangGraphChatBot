@@ -32,6 +32,7 @@ CustomLangGraphChatBot/
 ├── test_runner.py                  # Comprehensive test runner
 ├── validate_setup.py               # Setup validation script
 ├── TESTING.md                      # Complete testing guide
+├── TESTING_ARCHITECTURE.md        # Detailed testing architecture documentation
 ├── .env.example                    # Environment variables template
 ├── Dockerfile                      # Docker configuration
 ├── frontend.html                   # Web frontend interface
@@ -373,6 +374,8 @@ python3 -c "from tools.registry import ToolRegistry; print('Tools loaded success
 
 The project includes extensive test coverage across all components with 10+ test files covering different aspects:
 
+> 📋 **For detailed testing architecture, flow diagrams, and contributor guidelines, see [TESTING_ARCHITECTURE.md](TESTING_ARCHITECTURE.md)**
+
 ### Test Structure
 ```
 tests/
@@ -556,6 +559,7 @@ class MyCustomTool(BaseTool):
    - Update README.md for new features
    - Add examples for new tools
    - Update TESTING.md for new test procedures
+   - Follow testing architecture guidelines in [TESTING_ARCHITECTURE.md](TESTING_ARCHITECTURE.md)
    - Include inline code documentation
 
 4. **Pull Request Process**

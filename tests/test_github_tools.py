@@ -159,10 +159,10 @@ class TestGitHubRepositoryTool:
         assert owner == "octocat"
         assert repo == "Hello-World"
 
-        # Test with .git extension - the implementation doesn't strip .git
+        # Test with .git extension - the implementation strips .git
         owner, repo = self.tool._parse_repo_url("https://github.com/octocat/Hello-World.git")
         assert owner == "octocat"
-        assert repo == "Hello-World.git"  # Implementation keeps .git extension
+        assert repo == "Hello-World"  # Implementation strips .git extension
 
 
 class TestGitHubFileContentTool:

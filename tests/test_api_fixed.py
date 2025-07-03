@@ -107,22 +107,39 @@ class TestAPIFixed:
     
     def test_review_endpoint_with_mock_workflow(self):
         """Test review endpoint with mocked workflow."""
-        with patch('workflow.create_review_workflow') as mock_workflow:
-            mock_workflow_instance = Mock()
+        from unittest.mock import AsyncMock
+
+        with patch('api.create_review_workflow') as mock_workflow:
+            # Create proper mock chain for async workflow
+            mock_workflow_graph = Mock()
+            mock_compiled_workflow = AsyncMock()
+
+            # Mock final state with proper analysis_results structure
             mock_final_state = {
-                "analysis_results": {"status": "success"},
+                "analysis_results": {
+                    "static_analysis": {},
+                    "ai_analysis": {},
+                    "security_analysis": {},
+                    "complexity_analysis": None,
+                    "overall_score": 8.5,
+                    "summary": "Test analysis completed",
+                    "recommendations": ["Add more tests"]
+                },
                 "current_step": "completed",
                 "error_message": None
             }
-            mock_workflow_instance.arun.return_value = mock_final_state
-            mock_workflow.return_value = mock_workflow_instance
-            
+
+            mock_compiled_workflow.ainvoke.return_value = mock_final_state
+            mock_workflow_graph.compile.return_value = mock_compiled_workflow
+            mock_workflow.return_value = mock_workflow_graph
+
             request_data = {"repository_url": "https://github.com/test/repo"}
             response = self.client.post("/review", json=request_data)
-            
+
             assert response.status_code == 200
             data = response.json()
             assert "report" in data
+            assert data["report"]["overall_score"] == 8.5
             print("✅ Review endpoint with workflow mock works")
     
     def test_metrics_endpoint_fixed(self):
