@@ -86,7 +86,11 @@ cd CustomLangGraphChatBot
 
 #### 2. Install Dependencies
 ```bash
+# Install core dependencies
 pip install -r requirements.txt
+
+# For development and testing (optional)
+pip install -r requirements-test.txt
 ```
 
 #### 3. Configure Environment Variables
@@ -425,6 +429,12 @@ tests/
 - CORS and error handling
 
 ### Running Tests
+
+#### Prerequisites
+```bash
+# Install test dependencies (if not already installed)
+pip install -r requirements-test.txt
+```
 
 #### Quick Test Commands
 ```bash
