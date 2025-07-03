@@ -68,11 +68,12 @@ class TestInputValidationErrors:
         assert "error" in result
         assert "argument of type 'nonetype'" in result["error"].lower() or "repository_url" in result["error"].lower()
         
-        # Test SlackNotificationTool without channel
-        tool = SlackNotificationTool()
-        result = tool._run('{"message": "test"}')
-        assert "error" in result
-        assert any(keyword in result["error"].lower() for keyword in ["channel", "ssl", "certificate", "connect"])
+        # Test SlackNotificationTool without webhook URL configured
+        with patch.dict(os.environ, {}, clear=True):
+            tool = SlackNotificationTool()
+            result = tool._run('{"message": "test"}')
+            assert "error" in result
+            assert "webhook url not configured" in result["error"].lower()
     
     def test_invalid_parameter_types(self):
         """Test handling of invalid parameter types."""
