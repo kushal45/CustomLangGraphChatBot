@@ -1,5 +1,6 @@
 # Test Dependencies for CustomLangGraphChatBot
-# This file contains all dependencies required for running tests
+# This file contains ONLY dependencies required for running tests
+# Dependencies already in requirements.txt are NOT duplicated here
 
 # Core testing framework
 pytest>=8.0.0
@@ -15,48 +16,7 @@ psutil>=5.9.0
 httpx>=0.27.0
 fastapi[testing]>=0.100.0
 
-# Async testing support
-anyio>=4.0.0
-
-# Code quality and linting tools
-pylint>=3.0.0
-flake8>=7.0.0
-bandit>=1.7.0
-mypy>=1.8.0
-black>=24.0.0
-isort>=5.13.0
-
-# Security scanning
-safety>=3.0.0
-
-# Coverage reporting
-coverage[toml]>=7.4.0
-
-# Additional testing utilities
-freezegun>=1.4.0  # For time-based testing
-responses>=0.25.0  # For HTTP mocking
-factory-boy>=3.3.0  # For test data generation
-faker>=24.0.0  # For generating fake data
-
-# Development and debugging
-ipdb>=0.13.0  # Enhanced debugger
-rich>=13.7.0  # Rich console output for better test reporting
-
-# Documentation testing
-sphinx>=7.2.0  # For documentation generation
-sphinx-rtd-theme>=2.0.0  # ReadTheDocs theme
-
-# Performance profiling
-py-spy>=0.3.0  # Performance profiling
-memory-profiler>=0.61.0  # Memory usage profiling
-
-# Test data and fixtures
-pyyaml>=6.0.0  # For YAML test fixtures
-toml>=0.10.0  # For TOML configuration files
-
-# Concurrent testing
-pytest-parallel>=0.1.0  # Parallel test execution
-pytest-benchmark>=4.0.0  # Performance benchmarking
-
-# API testing specific
-starlette[testing]>=0.36.0  # Starlette testing utilities
+# Note: The following dependencies are already in requirements.txt:
+# - pylint, flake8, bandit, mypy (code quality tools)
+# - aiohttp, requests (HTTP libraries)
+# - All other dependencies needed by the main application
