@@ -9,7 +9,7 @@ from typing import Generator, Dict, Any
 
 # Import components for fixtures
 from tools.registry import ToolRegistry, ToolConfig
-from src.state import AnalysisState, AnalysisRequest
+from state import ReviewState, ReviewStatus, RepositoryInfo
 
 
 @pytest.fixture
@@ -86,7 +86,7 @@ def sample_repository(temp_directory: str) -> str:
         f.write('''
 """Main application module."""
 
-from .utils import helper_function
+from utils import helper_function
 
 def main():
     """Main application entry point."""
@@ -120,8 +120,8 @@ def validate_input(data):
 """Tests for main module."""
 
 import pytest
-from src.main import main
-from src.utils import helper_function, validate_input
+from main import main
+from utils import helper_function, validate_input
 
 def test_main():
     """Test main function."""
@@ -169,20 +169,48 @@ def tool_registry(tool_config: ToolConfig) -> ToolRegistry:
 
 
 @pytest.fixture
-def sample_analysis_request(sample_repository: str) -> AnalysisRequest:
-    """Create a sample analysis request."""
-    return AnalysisRequest(
-        repository_url=sample_repository,
-        analysis_type="comprehensive",
-        target_files=["src/main.py", "src/utils.py"],
-        include_ai_analysis=True
+def sample_repository_info(sample_repository: str) -> RepositoryInfo:
+    """Create a sample repository info."""
+    return RepositoryInfo(
+        url=f"file://{sample_repository}",
+        name="test-repo",
+        full_name="test-user/test-repo",
+        description="A test repository for testing",
+        language="Python",
+        stars=42,
+        forks=7,
+        size=1024,
+        default_branch="main",
+        topics=["python", "testing"],
+        file_structure=[],
+        recent_commits=[]
     )
 
 
 @pytest.fixture
-def sample_analysis_state(sample_analysis_request: AnalysisRequest) -> AnalysisState:
-    """Create a sample analysis state."""
-    return AnalysisState(request=sample_analysis_request)
+def sample_review_state(sample_repository: str, sample_repository_info: RepositoryInfo) -> ReviewState:
+    """Create a sample review state."""
+    return ReviewState(
+        messages=[],
+        current_step="initializing",
+        status=ReviewStatus.INITIALIZING,
+        error_message=None,
+        repository_url=f"file://{sample_repository}",
+        repository_info=sample_repository_info,
+        repository_type="local",
+        enabled_tools=["github_repository", "pylint_analysis", "code_review"],
+        tool_results={},
+        failed_tools=[],
+        analysis_results=None,
+        files_analyzed=[],
+        total_files=0,
+        review_config={},
+        start_time=None,
+        end_time=None,
+        notifications_sent=[],
+        report_generated=False,
+        final_report=None
+    )
 
 
 @pytest.fixture
@@ -247,12 +275,14 @@ def mock_subprocess_failure():
     return mock_result
 
 
-@pytest.fixture(autouse=True)
-def setup_test_environment():
-    """Set up test environment variables."""
+@pytest.fixture
+def mock_test_environment():
+    """Set up mock test environment variables for unit tests only."""
     test_env = {
         "GITHUB_TOKEN": "test-github-token",
+        "GITHUB_VERIFY_SSL": "false",  # Disable SSL verification for testing
         "XAI_API_KEY": "test-xai-key",
+        "GROQ_API_KEY": "test-groq-key",
         "SLACK_WEBHOOK_URL": "https://hooks.slack.com/test",
         "EMAIL_SMTP_SERVER": "smtp.test.com",
         "EMAIL_USERNAME": "test@example.com",
@@ -261,7 +291,7 @@ def setup_test_environment():
         "JIRA_USERNAME": "test@example.com",
         "JIRA_API_TOKEN": "test-jira-token"
     }
-    
+
     with patch.dict(os.environ, test_env):
         yield
 
@@ -315,6 +345,8 @@ def pytest_configure(config):
     config.addinivalue_line("markers", "ai: Tests requiring AI API")
     config.addinivalue_line("markers", "github: Tests requiring GitHub API")
     config.addinivalue_line("markers", "network: Tests requiring network access")
+    config.addinivalue_line("markers", "real_params: Tests using real API parameters")
+    config.addinivalue_line("markers", "mock_env: Tests requiring mock environment")
 
 
 # Test collection hooks
@@ -332,13 +364,73 @@ def pytest_collection_modifyitems(config, items):
             item.add_marker(pytest.mark.ai)
         elif "test_github" in item.nodeid:
             item.add_marker(pytest.mark.github)
+        elif "test_module_sanity" in item.nodeid or "integration_runner" in item.nodeid:
+            item.add_marker(pytest.mark.integration)
+            item.add_marker(pytest.mark.real_params)  # Mark real parameter tests
         else:
             item.add_marker(pytest.mark.unit)
-        
+
         # Mark slow tests
         if "performance" in item.nodeid or "load" in item.nodeid:
             item.add_marker(pytest.mark.slow)
-        
+
         # Mark network tests
         if any(keyword in item.nodeid for keyword in ["github", "slack", "webhook", "email"]):
             item.add_marker(pytest.mark.network)
+
+
+@pytest.fixture(autouse=True)
+def auto_use_mock_env(request, mock_test_environment):
+    """Automatically apply mock environment to tests marked with mock_env."""
+    if request.node.get_closest_marker("mock_env"):
+        # Mock environment is already applied via the fixture
+        pass
+
+
+@pytest.fixture(autouse=True, scope="session")
+def mock_monitoring_system():
+    """Mock the monitoring system to prevent hanging issues in API tests."""
+    with patch('monitoring.monitoring') as mock_monitoring, \
+         patch('error_tracking.error_tracker') as mock_error_tracker:
+
+        # Create a proper mock for system_metrics with numeric values
+        mock_system_metrics = Mock()
+        mock_system_metrics.active_requests = 0
+        mock_system_metrics.peak_active_requests = 0
+        mock_system_metrics.total_requests = 0
+        mock_system_metrics.total_errors = 0
+        mock_system_metrics.unique_clients = set()
+
+        mock_monitoring.system_metrics = mock_system_metrics
+        mock_monitoring.record_api_request = Mock()
+        mock_monitoring.get_health_status.return_value = {
+            "status": "healthy",
+            "error_rate": 0.0,
+            "uptime_seconds": 100,
+            "total_requests": 10,
+            "active_requests": 0
+        }
+        mock_monitoring.get_system_metrics_summary.return_value = {
+            "total_requests": 10,
+            "total_errors": 0,
+            "error_rate": 0.0,
+            "uptime_seconds": 100,
+            "active_requests": 0,
+            "peak_active_requests": 5,
+            "unique_clients": 3
+        }
+        mock_monitoring.get_api_metrics_summary.return_value = {}
+        mock_monitoring.get_tool_metrics_summary.return_value = {}
+        mock_monitoring.get_recent_events.return_value = []
+
+        # Mock error tracker
+        mock_error_tracker.get_error_summary.return_value = {
+            "time_period_hours": 24,
+            "total_errors": 0,
+            "errors_by_severity": {},
+            "errors_by_category": {},
+            "top_error_sources": [],
+            "error_rate_per_hour": 0.0
+        }
+
+        yield mock_monitoring, mock_error_tracker

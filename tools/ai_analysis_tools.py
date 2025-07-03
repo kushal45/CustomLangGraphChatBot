@@ -10,6 +10,10 @@ from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import JsonOutputParser
 from pydantic import BaseModel, Field
 from enum import Enum
+from .logging_utils import log_tool_execution, log_api_call, LoggedBaseTool
+from logging_config import get_logger
+
+logger = get_logger(__name__)
 
 
 class AIProvider(str, Enum):
@@ -303,7 +307,7 @@ def get_ai_config() -> AIConfig:
     return AIConfig(provider=provider)
 
 
-class CodeReviewTool(BaseTool):
+class CodeReviewTool(BaseTool, LoggedBaseTool):
     """AI-powered code review tool with multiple provider support."""
 
     name: str = "ai_code_review"
@@ -322,7 +326,12 @@ class CodeReviewTool(BaseTool):
     """
 
     config: AIConfig = Field(default_factory=get_ai_config)
+
+    def __init__(self, **kwargs):
+        BaseTool.__init__(self, **kwargs)
+        LoggedBaseTool.__init__(self)
     
+    @log_tool_execution
     def _run(
         self,
         query: str,
@@ -337,7 +346,15 @@ class CodeReviewTool(BaseTool):
             language = params.get("language", "Python")
             context = params.get("context", "")
 
+            self.log_info("Starting AI code review", extra={
+                "language": language,
+                "code_length": len(code),
+                "has_context": bool(context),
+                "provider": self.config.provider
+            })
+
             if not code:
+                self.log_error("No code provided for review")
                 return {"error": "No code provided for review"}
 
             # Initialize AI LLM
@@ -384,28 +401,72 @@ Please provide your review in the following JSON format:
 Respond only with valid JSON, no additional text.
 """
 
-            # Execute review with Grok
+            self.log_debug("Sending code review request to AI provider", extra={
+                "provider": self.config.provider,
+                "prompt_length": len(prompt_text)
+            })
+
+            # Execute review with AI provider
             response = llm.invoke([{"role": "user", "content": prompt_text}])
+
+            self.log_debug("Received AI response", extra={
+                "response_length": len(response),
+                "provider": self.config.provider
+            })
 
             # Parse JSON response
             try:
                 result = json.loads(response)
+                self.log_debug("Successfully parsed AI response as JSON")
             except json.JSONDecodeError:
+                self.log_warning("Failed to parse AI response as JSON, attempting extraction", extra={
+                    "provider": self.config.provider
+                })
                 # If JSON parsing fails, try to extract JSON from response
                 import re
                 json_match = re.search(r'\{.*\}', response, re.DOTALL)
                 if json_match:
-                    result = json.loads(json_match.group())
+                    try:
+                        result = json.loads(json_match.group())
+                        self.log_debug("Successfully extracted JSON from AI response")
+                    except json.JSONDecodeError:
+                        self.log_error("Failed to extract valid JSON from AI response", extra={
+                            "provider": self.config.provider,
+                            "response_preview": response[:200]
+                        })
+                        return {"error": f"Failed to parse {self.config.provider.value} response as JSON", "raw_response": response}
                 else:
+                    self.log_error("No JSON found in AI response", extra={
+                        "provider": self.config.provider,
+                        "response_preview": response[:200]
+                    })
                     return {"error": f"Failed to parse {self.config.provider.value} response as JSON", "raw_response": response}
             
-            return {
+            final_result = {
                 "tool": "ai_code_review",
                 "language": language,
                 "review": result
             }
-            
+
+            self.log_info("AI code review completed successfully", extra={
+                "provider": self.config.provider,
+                "language": language,
+                "overall_score": result.get("overall_score"),
+                "issues_count": len(result.get("issues", [])),
+                "suggestions_count": len(result.get("suggestions", [])),
+                "has_performance_notes": bool(result.get("performance_notes"))
+            })
+
+            return final_result
+
         except Exception as e:
+            # Use locals().get() to safely access language variable
+            language_info = locals().get('language', 'unknown')
+            self.log_error("AI code review failed", extra={
+                "error": str(e),
+                "provider": self.config.provider,
+                "language": language_info
+            })
             return {"error": f"AI code review failed: {str(e)}"}
 
 
@@ -624,7 +685,7 @@ Respond only with valid JSON, no additional text.
         except Exception as e:
             return {"error": f"Refactoring analysis failed: {str(e)}"}
 
-class TestGeneratorTool(BaseTool):
+class AITestGeneratorTool(BaseTool):
     """AI tool for generating unit tests with multiple provider support."""
 
     name: str = "ai_test_generator"
@@ -726,7 +787,7 @@ Respond only with valid JSON, no additional text.
 code_review_tool = CodeReviewTool()
 documentation_generator_tool = DocumentationGeneratorTool()
 refactoring_suggestion_tool = RefactoringSuggestionTool()
-test_generator_tool = TestGeneratorTool()
+test_generator_tool = AITestGeneratorTool()
 
 # List of all AI analysis tools
 AI_ANALYSIS_TOOLS = [

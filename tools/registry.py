@@ -5,6 +5,9 @@ from typing import Dict, List, Any, Optional, Type
 from enum import Enum
 from pydantic import BaseModel, Field
 from langchain.tools import BaseTool
+from logging_config import get_logger
+
+logger = get_logger(__name__)
 
 # Import all tool modules
 from .github_tools import GITHUB_TOOLS
@@ -39,9 +42,15 @@ class RepositoryType(Enum):
 
 class ToolConfig(BaseModel):
     """Configuration for tool management."""
+    # Core tool configuration
+    enabled_categories: List[str] = Field(default_factory=lambda: ["filesystem", "analysis", "ai_analysis", "github", "communication"])
+    max_concurrent_tools: int = Field(default_factory=lambda: int(os.getenv("TOOL_MAX_CONCURRENT", "5")))
+    tool_timeout: int = Field(default_factory=lambda: int(os.getenv("TOOL_TIMEOUT", "300")))
+    enable_caching: bool = Field(default_factory=lambda: os.getenv("TOOL_ENABLE_CACHING", "true").lower() == "true")
+
     # GitHub configuration
     github_token: str = Field(default_factory=lambda: os.getenv("GITHUB_TOKEN", ""))
-    
+
     # AI analysis configuration - Generic AI provider support
     ai_provider: str = Field(default_factory=lambda: os.getenv("AI_PROVIDER", "groq"))
     groq_api_key: str = Field(default_factory=lambda: os.getenv("GROQ_API_KEY", ""))
@@ -96,43 +105,78 @@ class ToolConfig(BaseModel):
 
 class ToolRegistry:
     """Registry for managing and accessing tools."""
-    
+
     def __init__(self, config: Optional[ToolConfig] = None):
         self.config = config or ToolConfig()
         self._tools: Dict[str, BaseTool] = {}
         self._categories: Dict[ToolCategory, List[str]] = {}
+
+        logger.info("Initializing tool registry", extra={
+            "config_type": type(self.config).__name__
+        })
+
         self._initialize_tools()
+
+        logger.info("Tool registry initialized successfully", extra={
+            "total_tools": len(self._tools),
+            "categories": list(self._categories.keys()),
+            "tools_by_category": {cat.value: len(tools) for cat, tools in self._categories.items()}
+        })
     
     def _initialize_tools(self):
         """Initialize all available tools."""
+        logger.debug("Starting tool initialization")
+
         # Register GitHub tools
+        logger.debug(f"Registering {len(GITHUB_TOOLS)} GitHub tools")
         for tool in GITHUB_TOOLS:
             self._tools[tool.name] = tool
+            logger.debug(f"Registered GitHub tool: {tool.name}")
         self._categories[ToolCategory.GITHUB] = [tool.name for tool in GITHUB_TOOLS]
-        
+
         # Register static analysis tools
+        logger.debug(f"Registering {len(ANALYSIS_TOOLS)} static analysis tools")
         for tool in ANALYSIS_TOOLS:
             self._tools[tool.name] = tool
+            logger.debug(f"Registered analysis tool: {tool.name}")
         self._categories[ToolCategory.STATIC_ANALYSIS] = [tool.name for tool in ANALYSIS_TOOLS]
-        
+
         # Register AI analysis tools
+        logger.debug(f"Registering {len(AI_ANALYSIS_TOOLS)} AI analysis tools")
         for tool in AI_ANALYSIS_TOOLS:
             self._tools[tool.name] = tool
+            logger.debug(f"Registered AI tool: {tool.name}")
         self._categories[ToolCategory.AI_ANALYSIS] = [tool.name for tool in AI_ANALYSIS_TOOLS]
-        
+
         # Register filesystem tools
+        logger.debug(f"Registering {len(FILESYSTEM_TOOLS)} filesystem tools")
         for tool in FILESYSTEM_TOOLS:
             self._tools[tool.name] = tool
+            logger.debug(f"Registered filesystem tool: {tool.name}")
         self._categories[ToolCategory.FILESYSTEM] = [tool.name for tool in FILESYSTEM_TOOLS]
-        
+
         # Register communication tools
+        logger.debug(f"Registering {len(COMMUNICATION_TOOLS)} communication tools")
         for tool in COMMUNICATION_TOOLS:
             self._tools[tool.name] = tool
+            logger.debug(f"Registered communication tool: {tool.name}")
         self._categories[ToolCategory.COMMUNICATION] = [tool.name for tool in COMMUNICATION_TOOLS]
+
+        logger.debug("Tool initialization completed")
     
     def get_tool(self, tool_name: str) -> Optional[BaseTool]:
         """Get a specific tool by name."""
-        return self._tools.get(tool_name)
+        logger.debug(f"Retrieving tool: {tool_name}")
+        tool = self._tools.get(tool_name)
+
+        if tool:
+            logger.debug(f"Tool found: {tool_name}")
+        else:
+            logger.warning(f"Tool not found: {tool_name}", extra={
+                "available_tools": list(self._tools.keys())
+            })
+
+        return tool
     
     def get_tools_by_category(self, category: ToolCategory) -> List[BaseTool]:
         """Get all tools in a specific category."""

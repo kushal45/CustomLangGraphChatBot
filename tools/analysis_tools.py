@@ -9,6 +9,10 @@ from typing import Dict, Any, List, Optional
 from langchain.tools import BaseTool
 from langchain_core.callbacks import CallbackManagerForToolRun
 from pydantic import BaseModel, Field
+from .logging_utils import log_tool_execution, LoggedBaseTool
+from logging_config import get_logger
+
+logger = get_logger(__name__)
 
 
 class CodeAnalysisConfig(BaseModel):
@@ -18,9 +22,9 @@ class CodeAnalysisConfig(BaseModel):
     temp_dir: Optional[str] = None
 
 
-class PylintTool(BaseTool):
+class PylintTool(BaseTool, LoggedBaseTool):
     """Tool for running Pylint static analysis on Python code."""
-    
+
     name: str = "pylint_analysis"
     description: str = """
     Run Pylint static analysis on Python code to detect:
@@ -28,12 +32,17 @@ class PylintTool(BaseTool):
     - Style violations
     - Potential bugs
     - Code smells
-    
+
     Input should be Python code as a string.
     """
-    
+
     config: CodeAnalysisConfig = Field(default_factory=CodeAnalysisConfig)
+
+    def __init__(self, **kwargs):
+        BaseTool.__init__(self, **kwargs)
+        LoggedBaseTool.__init__(self)
     
+    @log_tool_execution
     def _run(
         self,
         code: str,
@@ -41,18 +50,31 @@ class PylintTool(BaseTool):
     ) -> Dict[str, Any]:
         """Run Pylint analysis on the provided code."""
         try:
+            self.log_info("Starting Pylint analysis", extra={
+                "code_length": len(code),
+                "max_file_size": self.config.max_file_size
+            })
+
             if len(code) > self.config.max_file_size:
+                self.log_warning("Code too large for analysis", extra={
+                    "code_length": len(code),
+                    "max_allowed": self.config.max_file_size
+                })
                 return {"error": "Code too large for analysis"}
-            
+
             # Create temporary file
             with tempfile.NamedTemporaryFile(mode='w', suffix='.py', delete=False) as temp_file:
                 temp_file.write(code)
                 temp_file_path = temp_file.name
+
+            self.log_debug("Created temporary file for Pylint analysis", extra={
+                "temp_file": temp_file_path
+            })
             
             try:
                 # Run pylint
                 result = subprocess.run(
-                    ['pylint', '--output-format=json', '--reports=no', temp_file_path],
+                    ['python3', '-m', 'pylint', '--output-format=json', '--reports=no', temp_file_path],
                     capture_output=True,
                     text=True,
                     timeout=self.config.timeout
@@ -148,7 +170,7 @@ class Flake8Tool(BaseTool):
             try:
                 # Run flake8
                 result = subprocess.run(
-                    ['flake8', '--format=json', temp_file_path],
+                    ['python3', '-m', 'flake8', '--format=json', temp_file_path],
                     capture_output=True,
                     text=True,
                     timeout=self.config.timeout
@@ -241,7 +263,7 @@ class BanditSecurityTool(BaseTool):
             try:
                 # Run bandit
                 result = subprocess.run(
-                    ['bandit', '-f', 'json', temp_file_path],
+                    ['python3', '-m', 'bandit', '-f', 'json', temp_file_path],
                     capture_output=True,
                     text=True,
                     timeout=self.config.timeout

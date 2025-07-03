@@ -7,12 +7,8 @@ import shutil
 from unittest.mock import Mock, patch, MagicMock
 
 # Import workflow components to test
-from src.state import AnalysisState, AnalysisRequest, AnalysisResult
-from src.nodes import (
-    initialize_analysis, select_tools, execute_tools, 
-    aggregate_results, generate_report
-)
-from src.workflow import create_analysis_workflow
+from state import ReviewState
+from workflow import create_review_workflow
 from tools.registry import ToolRegistry, ToolConfig
 
 

@@ -3,30 +3,33 @@
 import pytest
 import json
 import os
+import requests
 from unittest.mock import Mock, patch, MagicMock
 from typing import Dict, Any
 
 # Import the tools to test
 from tools.ai_analysis_tools import (
     CodeReviewTool, DocumentationGeneratorTool,
-    RefactoringSuggestionTool, TestGeneratorTool,
+    RefactoringSuggestionTool, AITestGeneratorTool,
     AIConfig, AIProvider, GenericAILLM, get_ai_config
 )
+
+# Mark all tests in this file as unit tests requiring mock environment
+pytestmark = [pytest.mark.unit, pytest.mark.mock_env]
 
 
 class TestAIConfig:
     """Test AIConfig configuration class."""
 
-    def test_default_config_groq(self):
+    def test_default_config_groq(self, mock_test_environment):
         """Test default configuration values for Groq."""
-        with patch.dict(os.environ, {"GROQ_API_KEY": "test-key"}):
-            config = get_ai_config()
-            assert config.provider == AIProvider.GROQ
-            assert config.model_name == "llama3-8b-8192"
-            assert config.temperature == 0.1
-            assert config.max_tokens == 2000
+        config = get_ai_config()
+        assert config.provider == AIProvider.GROQ
+        assert config.model_name == "llama3-8b-8192"
+        assert config.temperature == 0.1
+        assert config.max_tokens == 2000
 
-    def test_config_with_multiple_providers(self):
+    def test_config_with_multiple_providers(self, mock_test_environment):
         """Test configuration with multiple providers available."""
         with patch.dict(os.environ, {
             "GROQ_API_KEY": "groq-key",
@@ -37,14 +40,14 @@ class TestAIConfig:
             assert config.provider == AIProvider.GROQ
             assert config.api_key == "groq-key"
 
-    def test_config_fallback_to_huggingface(self):
+    def test_config_fallback_to_huggingface(self, mock_test_environment):
         """Test configuration fallback to Hugging Face."""
         with patch.dict(os.environ, {"HUGGINGFACE_API_KEY": "hf-key"}, clear=True):
             config = get_ai_config()
             assert config.provider == AIProvider.HUGGINGFACE
             assert config.api_key == "hf-key"
 
-    def test_config_explicit_provider(self):
+    def test_config_explicit_provider(self, mock_test_environment):
         """Test explicit provider selection."""
         with patch.dict(os.environ, {
             "AI_PROVIDER": "google",
@@ -56,17 +59,17 @@ class TestAIConfig:
             assert config.api_key == "google-key"
 
 
-class TestGrokLLM:
-    """Test GrokLLM wrapper class."""
-    
-    def setup_method(self):
+class TestGenericAILLM:
+    """Test GenericAILLM wrapper class."""
+
+    def setup_method(self, mock_test_environment):
         """Set up test fixtures."""
-        self.config = GrokConfig(api_key="test-key")
-        self.llm = GrokLLM(self.config)
+        self.config = AIConfig(provider=AIProvider.GROK, api_key="test-key")
+        self.llm = GenericAILLM(self.config)
     
     @patch('requests.post')
     def test_successful_api_call(self, mock_post):
-        """Test successful API call to Grok."""
+        """Test successful API call to Generic AI provider."""
         # Mock successful response
         mock_response = Mock()
         mock_response.status_code = 200
@@ -74,37 +77,42 @@ class TestGrokLLM:
             "choices": [{"message": {"content": "Test response"}}]
         }
         mock_post.return_value = mock_response
-        
+
         messages = [{"role": "user", "content": "Test message"}]
         result = self.llm.invoke(messages)
-        
+
         assert result == "Test response"
         mock_post.assert_called_once()
     
     @patch('requests.post')
     def test_api_call_failure(self, mock_post):
         """Test API call failure handling."""
-        # Mock failed response
+        # Mock failed response that raises HTTPError
         mock_response = Mock()
         mock_response.status_code = 500
         mock_response.text = "Internal Server Error"
+        mock_response.raise_for_status.side_effect = requests.exceptions.HTTPError("500 Server Error")
         mock_post.return_value = mock_response
-        
+
         messages = [{"role": "user", "content": "Test message"}]
-        result = self.llm.invoke(messages)
-        
-        assert "Error calling Grok API" in result
+
+        with pytest.raises(Exception) as exc_info:
+            self.llm.invoke(messages)
+
+        assert "API request failed" in str(exc_info.value)
     
     @patch('requests.post')
     def test_api_call_timeout(self, mock_post):
         """Test API call timeout handling."""
         # Mock timeout exception
-        mock_post.side_effect = Exception("Timeout")
-        
+        mock_post.side_effect = requests.exceptions.Timeout("Request timed out")
+
         messages = [{"role": "user", "content": "Test message"}]
-        result = self.llm.invoke(messages)
-        
-        assert "Error calling Grok API" in result
+
+        with pytest.raises(Exception) as exc_info:
+            self.llm.invoke(messages)
+
+        assert "API request failed" in str(exc_info.value)
 
 
 class TestCodeReviewTool:
@@ -120,7 +128,7 @@ def calculate_fibonacci(n):
     return calculate_fibonacci(n-1) + calculate_fibonacci(n-2)
 '''
     
-    @patch('tools.ai_analysis_tools.GrokLLM.invoke')
+    @patch('tools.ai_analysis_tools.GenericAILLM.invoke')
     def test_successful_code_review(self, mock_invoke):
         """Test successful code review."""
         # Mock Grok response
@@ -154,26 +162,27 @@ def calculate_fibonacci(n):
         result = self.tool._run(query)
         
         assert "error" not in result
-        assert result["overall_score"] == 6
-        assert len(result["issues"]) == 1
-        assert result["issues"][0]["severity"] == "HIGH"
+        # CodeReviewTool returns nested structure with 'review' object
+        assert result["review"]["overall_score"] == 6
+        assert len(result["review"]["issues"]) == 1
+        assert result["review"]["issues"][0]["severity"] == "HIGH"
     
     def test_invalid_json_input(self):
         """Test handling of invalid JSON input."""
         result = self.tool._run("invalid json")
         assert "error" in result
-        assert "Invalid JSON input" in result["error"]
+        assert "Expecting value" in result["error"]  # Actual JSON parsing error message
     
     def test_missing_code_parameter(self):
         """Test handling of missing code parameter."""
         query = json.dumps({"language": "Python"})
         result = self.tool._run(query)
         assert "error" in result
-        assert "Code is required" in result["error"]
+        assert "No code provided for review" in result["error"]
     
-    @patch('tools.ai_analysis_tools.GrokLLM.invoke')
-    def test_malformed_grok_response(self, mock_invoke):
-        """Test handling of malformed Grok response."""
+    @patch('tools.ai_analysis_tools.GenericAILLM.invoke')
+    def test_malformed_ai_response(self, mock_invoke):
+        """Test handling of malformed AI response."""
         # Mock malformed JSON response
         mock_invoke.return_value = "This is not valid JSON"
         
@@ -184,7 +193,7 @@ def calculate_fibonacci(n):
         
         result = self.tool._run(query)
         
-        # Should still return a result with fallback parsing
+        # Should still return a result with fallback parsing or error
         assert "error" not in result or "Failed to parse" in result.get("error", "")
 
 
@@ -204,7 +213,7 @@ def process_data(data, filter_empty=True):
     return result
 '''
     
-    @patch('tools.ai_analysis_tools.GrokLLM.invoke')
+    @patch('tools.ai_analysis_tools.GenericAILLM.invoke')
     def test_successful_documentation_generation(self, mock_invoke):
         """Test successful documentation generation."""
         mock_response = json.dumps({
@@ -245,9 +254,10 @@ def process_data(data, filter_empty=True):
         result = self.tool._run(query)
         
         assert "error" not in result
-        assert "documented_code" in result
-        assert result["docstring_style"] == "Google"
-        assert result["documentation_quality"]["completeness"] == 9
+        # DocumentationGeneratorTool returns nested structure with 'documentation' object
+        assert "documented_code" in result["documentation"]
+        assert result["documentation"]["docstring_style"] == "Google"
+        assert result["documentation"]["documentation_quality"]["completeness"] == 9
 
 
 class TestRefactoringSuggestionTool:
@@ -266,7 +276,7 @@ def calculate_total(items):
     return total
 '''
     
-    @patch('tools.ai_analysis_tools.GrokLLM.invoke')
+    @patch('tools.ai_analysis_tools.GenericAILLM.invoke')
     def test_successful_refactoring_suggestions(self, mock_invoke):
         """Test successful refactoring suggestions."""
         mock_response = json.dumps({
@@ -297,18 +307,19 @@ def calculate_total(items):
         result = self.tool._run(query)
         
         assert "error" not in result
-        assert result["refactoring_score"] == 5
-        assert result["potential_score"] == 8
-        assert len(result["priority_suggestions"]) == 1
-        assert result["priority_suggestions"][0]["priority"] == "HIGH"
+        # RefactoringSuggestionTool returns nested structure with 'suggestions' object
+        assert result["suggestions"]["refactoring_score"] == 5
+        assert result["suggestions"]["potential_score"] == 8
+        assert len(result["suggestions"]["priority_suggestions"]) == 1
+        assert result["suggestions"]["priority_suggestions"][0]["priority"] == "HIGH"
 
 
-class TestTestGeneratorTool:
-    """Test TestGeneratorTool functionality."""
-    
+class TestAITestGeneratorTool:
+    """Test AITestGeneratorTool functionality."""
+
     def setup_method(self):
         """Set up test fixtures."""
-        self.tool = TestGeneratorTool()
+        self.tool = AITestGeneratorTool()
         self.sample_code = '''
 def divide_numbers(a, b):
     if b == 0:
@@ -316,7 +327,7 @@ def divide_numbers(a, b):
     return a / b
 '''
     
-    @patch('tools.ai_analysis_tools.GrokLLM.invoke')
+    @patch('tools.ai_analysis_tools.GenericAILLM.invoke')
     def test_successful_test_generation(self, mock_invoke):
         """Test successful test generation."""
         mock_response = json.dumps({
@@ -368,10 +379,11 @@ def test_divide_numbers_negative():
         result = self.tool._run(query)
         
         assert "error" not in result
-        assert "test_code" in result
-        assert len(result["test_cases"]) == 2
-        assert result["coverage_analysis"]["estimated_coverage"] == "95%"
-        assert "pytest" in result["setup_requirements"]
+        # AITestGeneratorTool returns nested structure with 'tests' object
+        assert "test_code" in result["tests"]
+        assert len(result["tests"]["test_cases"]) == 2
+        assert result["tests"]["coverage_analysis"]["estimated_coverage"] == "95%"
+        assert "pytest" in result["tests"]["setup_requirements"]
 
 
 if __name__ == "__main__":

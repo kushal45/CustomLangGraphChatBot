@@ -11,6 +11,10 @@ from typing import Dict, Any, List, Optional, Union
 from langchain.tools import BaseTool
 from langchain_core.callbacks import CallbackManagerForToolRun
 from pydantic import BaseModel, Field
+from .logging_utils import log_tool_execution, LoggedBaseTool
+from logging_config import get_logger
+
+logger = get_logger(__name__)
 
 
 class FileSystemConfig(BaseModel):

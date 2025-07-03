@@ -10,14 +10,13 @@ from unittest.mock import Mock, patch, MagicMock
 from pathlib import Path
 
 # Import all tools for testing
-from tools.ai_analysis_tools import CodeReviewTool, GrokLLM
+from tools.ai_analysis_tools import CodeReviewTool, GenericAILLM
 from tools.analysis_tools import PylintTool, Flake8Tool, BanditSecurityTool
 from tools.github_tools import GitHubRepositoryTool, GitHubFileContentTool
 from tools.filesystem_tools import FileReadTool, DirectoryListTool, GitRepositoryTool
 from tools.communication_tools import SlackNotificationTool, EmailNotificationTool, WebhookTool
 from tools.registry import ToolRegistry, ToolConfig
-from src.state import AnalysisState, AnalysisRequest
-from src.nodes import initialize_analysis, select_tools
+from state import ReviewState
 
 
 class TestInputValidationErrors:

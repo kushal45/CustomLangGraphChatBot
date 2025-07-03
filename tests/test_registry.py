@@ -8,7 +8,7 @@ from unittest.mock import Mock, patch
 from pathlib import Path
 
 # Import the classes to test
-from tools.registry import ToolRegistry, ToolConfig, detect_repository_type
+from tools.registry import ToolRegistry, ToolConfig, RepositoryType
 
 
 class TestToolConfig:

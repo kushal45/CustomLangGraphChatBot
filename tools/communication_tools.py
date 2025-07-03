@@ -11,6 +11,10 @@ from langchain_core.callbacks import CallbackManagerForToolRun
 from pydantic import BaseModel, Field
 import aiohttp
 import asyncio
+from .logging_utils import log_tool_execution, log_api_call, LoggedBaseTool
+from logging_config import get_logger
+
+logger = get_logger(__name__)
 
 
 class CommunicationConfig(BaseModel):

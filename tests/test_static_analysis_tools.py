@@ -337,25 +337,27 @@ class TestClass:
         
         assert "error" not in result
         assert result["tool"] == "complexity_analysis"
-        assert result["total_functions"] == 1
-        assert result["total_classes"] == 0
-        assert result["lines_of_code"] > 0
-        assert len(result["functions"]) == 1
-        assert result["functions"][0]["name"] == "simple_function"
-        assert result["functions"][0]["complexity"] == 1  # No branches
+        # CodeComplexityTool returns metrics with 'functions' count and 'function_details' array
+        assert result["metrics"]["functions"] == 1
+        assert result["metrics"]["classes"] == 0
+        assert result["metrics"]["lines_of_code"] > 0
+        assert len(result["metrics"]["function_details"]) == 1
+        assert result["metrics"]["function_details"][0]["name"] == "simple_function"
+        assert result["metrics"]["function_details"][0]["complexity"] == 1  # No branches
     
     def test_complex_code_complexity(self):
         """Test complexity analysis of complex code."""
         result = self.tool._run(self.complex_code)
         
         assert "error" not in result
-        assert result["total_functions"] == 3  # complex_function + 2 methods
-        assert result["total_classes"] == 1
-        
-        # Find the complex function
-        complex_func = next(f for f in result["functions"] if f["name"] == "complex_function")
+        # CodeComplexityTool returns metrics structure
+        assert result["metrics"]["functions"] == 3  # complex_function + 2 methods
+        assert result["metrics"]["classes"] == 1
+
+        # Find the complex function in function_details
+        complex_func = next(f for f in result["metrics"]["function_details"] if f["name"] == "complex_function")
         assert complex_func["complexity"] > 5  # Should have high complexity
-        assert complex_func["parameters"] == 3
+        assert complex_func["args_count"] == 3  # Implementation uses 'args_count' not 'parameters'
     
     def test_invalid_python_code(self):
         """Test handling of invalid Python code."""
@@ -365,18 +367,20 @@ def invalid_function(
 '''
         
         result = self.tool._run(invalid_code)
-        
+
         assert "error" in result
-        assert "Failed to parse" in result["error"]
+        # Actual error message from implementation
+        assert "Syntax error in code" in result["error"]
     
     def test_empty_code(self):
         """Test handling of empty code."""
         result = self.tool._run("")
-        
+
         assert "error" not in result
-        assert result["total_functions"] == 0
-        assert result["total_classes"] == 0
-        assert result["lines_of_code"] == 0
+        # CodeComplexityTool returns metrics structure
+        assert result["metrics"]["functions"] == 0
+        assert result["metrics"]["classes"] == 0
+        assert result["metrics"]["lines_of_code"] == 0  # Empty string has 0 lines
     
     def test_code_with_nested_functions(self):
         """Test complexity analysis with nested functions."""
@@ -394,10 +398,11 @@ def outer_function():
         result = self.tool._run(nested_code)
         
         assert "error" not in result
-        assert result["total_functions"] == 2  # outer and inner
-        
-        # Check that both functions are detected
-        function_names = [f["name"] for f in result["functions"]]
+        # CodeComplexityTool returns metrics structure
+        assert result["metrics"]["functions"] == 2  # outer and inner
+
+        # Check that both functions are detected in function_details
+        function_names = [f["name"] for f in result["metrics"]["function_details"]]
         assert "outer_function" in function_names
         assert "inner_function" in function_names
 

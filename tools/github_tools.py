@@ -2,6 +2,7 @@
 
 import os
 import asyncio
+import ssl
 from typing import Dict, Any, List, Optional
 from langchain.tools import BaseTool
 from langchain_core.callbacks import CallbackManagerForToolRun
@@ -9,6 +10,10 @@ from pydantic import BaseModel, Field
 import aiohttp
 import base64
 from urllib.parse import urlparse
+from .logging_utils import log_tool_execution, log_api_call, LoggedBaseTool
+from logging_config import get_logger
+
+logger = get_logger(__name__)
 
 
 class GitHubConfig(BaseModel):
@@ -17,10 +22,15 @@ class GitHubConfig(BaseModel):
     base_url: str = "https://api.github.com"
     timeout: int = 30
 
+    @property
+    def verify_ssl(self) -> bool:
+        """Dynamically read SSL verification setting from environment."""
+        return os.getenv("GITHUB_VERIFY_SSL", "true").lower() == "true"
 
-class GitHubRepositoryTool(BaseTool):
+
+class GitHubRepositoryTool(BaseTool, LoggedBaseTool):
     """Tool for accessing GitHub repository information."""
-    
+
     name: str = "github_repository"
     description: str = """
     Fetch repository information from GitHub including:
@@ -28,20 +38,51 @@ class GitHubRepositoryTool(BaseTool):
     - File structure and contents
     - Recent commits
     - Repository statistics
-    
+
     Input should be a repository URL or owner/repo format.
     """
-    
+
     config: GitHubConfig = Field(default_factory=GitHubConfig)
-    
+
+    def __init__(self, **kwargs):
+        BaseTool.__init__(self, **kwargs)
+        LoggedBaseTool.__init__(self)
+
+    def _create_ssl_context(self) -> Optional[ssl.SSLContext]:
+        """Create SSL context for HTTPS requests."""
+        # Debug logging
+        self.log_info(f"SSL Configuration - verify_ssl: {self.config.verify_ssl}, GITHUB_VERIFY_SSL env: {os.getenv('GITHUB_VERIFY_SSL')}")
+
+        if not self.config.verify_ssl:
+            self.log_info("SSL verification disabled - returning False")
+            return False  # Disable SSL verification
+
+        try:
+            # Create default SSL context
+            context = ssl.create_default_context()
+            self.log_info("Created default SSL context")
+            return context
+        except Exception as e:
+            self.log_warning(f"Failed to create SSL context: {e}")
+            # Fallback to unverified context for development
+            context = ssl.create_default_context()
+            context.check_hostname = False
+            context.verify_mode = ssl.CERT_NONE
+            self.log_info("Using unverified SSL context as fallback")
+            return context
+
+    @log_tool_execution
     def _run(
         self,
         repository_url: str,
         run_manager: Optional[CallbackManagerForToolRun] = None,
     ) -> Dict[str, Any]:
         """Synchronous wrapper for async implementation."""
+        self.log_info(f"GitHub Repository Tool - Input: {repository_url}")
+        self.log_info(f"GitHub Token available: {bool(self.config.token)}")
         return asyncio.run(self._arun(repository_url, run_manager))
     
+    @log_api_call("github")
     async def _arun(
         self,
         repository_url: str,
@@ -50,33 +91,64 @@ class GitHubRepositoryTool(BaseTool):
         """Fetch repository information asynchronously."""
         try:
             owner, repo = self._parse_repo_url(repository_url)
-            
+
+            self.log_info("Fetching GitHub repository information", extra={
+                "owner": owner,
+                "repo": repo,
+                "repository_url": repository_url
+            })
+
+            if not self.config.token:
+                self.log_error("GitHub token not configured")
+                return {"error": "GitHub token not configured"}
+
             headers = {
                 "Authorization": f"token {self.config.token}",
                 "Accept": "application/vnd.github.v3+json",
                 "User-Agent": "CustomLangGraphChatBot/1.0"
             }
-            
-            async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=self.config.timeout)) as session:
+
+            ssl_context = self._create_ssl_context()
+            connector = aiohttp.TCPConnector(ssl=ssl_context)
+            async with aiohttp.ClientSession(
+                timeout=aiohttp.ClientTimeout(total=self.config.timeout),
+                connector=connector
+            ) as session:
                 # Get repository metadata
                 repo_url = f"{self.config.base_url}/repos/{owner}/{repo}"
+                self.log_debug("Fetching repository metadata", extra={"url": repo_url})
+
                 async with session.get(repo_url, headers=headers) as response:
                     if response.status != 200:
+                        self.log_error("Failed to fetch repository", extra={"status_code": response.status})
                         return {"error": f"Failed to fetch repository: {response.status}"}
-                    
+
                     repo_data = await response.json()
-                
+                    self.log_debug("Repository metadata fetched successfully")
+
                 # Get repository contents (root level)
                 contents_url = f"{self.config.base_url}/repos/{owner}/{repo}/contents"
+                self.log_debug("Fetching repository contents", extra={"url": contents_url})
+
                 async with session.get(contents_url, headers=headers) as response:
                     contents_data = await response.json() if response.status == 200 else []
-                
+                    if response.status == 200:
+                        self.log_debug("Repository contents fetched", extra={"items_count": len(contents_data)})
+                    else:
+                        self.log_warning("Failed to fetch repository contents", extra={"status_code": response.status})
+
                 # Get recent commits
                 commits_url = f"{self.config.base_url}/repos/{owner}/{repo}/commits?per_page=10"
+                self.log_debug("Fetching recent commits", extra={"url": commits_url})
+
                 async with session.get(commits_url, headers=headers) as response:
                     commits_data = await response.json() if response.status == 200 else []
-                
-                return {
+                    if response.status == 200:
+                        self.log_debug("Recent commits fetched", extra={"commits_count": len(commits_data)})
+                    else:
+                        self.log_warning("Failed to fetch recent commits", extra={"status_code": response.status})
+
+                result = {
                     "repository": {
                         "name": repo_data.get("name"),
                         "full_name": repo_data.get("full_name"),
@@ -110,8 +182,21 @@ class GitHubRepositoryTool(BaseTool):
                         for commit in commits_data if isinstance(commits_data, list)
                     ]
                 }
-                
+
+                self.log_info("GitHub repository information fetched successfully", extra={
+                    "repository_name": result["repository"]["name"],
+                    "language": result["repository"]["language"],
+                    "contents_count": len(result["contents"]),
+                    "commits_count": len(result["recent_commits"])
+                })
+
+                return result
+
         except Exception as e:
+            self.log_error("Error fetching repository data", extra={
+                "error": str(e),
+                "repository_url": repository_url
+            })
             return {"error": f"Error fetching repository data: {str(e)}"}
     
     def _parse_repo_url(self, url: str) -> tuple[str, str]:
@@ -119,32 +204,51 @@ class GitHubRepositoryTool(BaseTool):
         if "/" in url and not url.startswith("http"):
             # Format: owner/repo
             parts = url.split("/")
-            return parts[0], parts[1]
-        
+            repo_name = parts[1].replace(".git", "")  # Remove .git extension
+            return parts[0], repo_name
+
         # Parse full GitHub URL
         parsed = urlparse(url)
         path_parts = parsed.path.strip("/").split("/")
-        
+
         if len(path_parts) >= 2:
-            return path_parts[0], path_parts[1]
-        
+            repo_name = path_parts[1].replace(".git", "")  # Remove .git extension
+            return path_parts[0], repo_name
+
         raise ValueError(f"Invalid repository URL format: {url}")
 
 
 class GitHubFileContentTool(BaseTool):
     """Tool for fetching file contents from GitHub repository."""
-    
+
     name: str = "github_file_content"
     description: str = """
     Fetch the contents of specific files from a GitHub repository.
-    
+
     Input should be a JSON object with:
     - repository_url: GitHub repository URL
     - file_path: Path to the file within the repository
     - branch: Optional branch name (defaults to default branch)
     """
-    
+
     config: GitHubConfig = Field(default_factory=GitHubConfig)
+
+    def _create_ssl_context(self) -> Optional[ssl.SSLContext]:
+        """Create SSL context for HTTPS requests."""
+        if not self.config.verify_ssl:
+            return False  # Disable SSL verification
+
+        try:
+            # Create default SSL context
+            context = ssl.create_default_context()
+            return context
+        except Exception as e:
+            logger.warning(f"Failed to create SSL context: {e}")
+            # Fallback to unverified context for development
+            context = ssl.create_default_context()
+            context.check_hostname = False
+            context.verify_mode = ssl.CERT_NONE
+            return context
     
     def _run(
         self,
@@ -176,7 +280,12 @@ class GitHubFileContentTool(BaseTool):
                 "User-Agent": "CustomLangGraphChatBot/1.0"
             }
             
-            async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=self.config.timeout)) as session:
+            ssl_context = self._create_ssl_context()
+            connector = aiohttp.TCPConnector(ssl=ssl_context)
+            async with aiohttp.ClientSession(
+                timeout=aiohttp.ClientTimeout(total=self.config.timeout),
+                connector=connector
+            ) as session:
                 file_url = f"{self.config.base_url}/repos/{owner}/{repo}/contents/{file_path}?ref={branch}"
                 
                 async with session.get(file_url, headers=headers) as response:
@@ -206,14 +315,16 @@ class GitHubFileContentTool(BaseTool):
         """Parse repository URL to extract owner and repo name."""
         if "/" in url and not url.startswith("http"):
             parts = url.split("/")
-            return parts[0], parts[1]
-        
+            repo_name = parts[1].replace(".git", "")  # Remove .git extension
+            return parts[0], repo_name
+
         parsed = urlparse(url)
         path_parts = parsed.path.strip("/").split("/")
-        
+
         if len(path_parts) >= 2:
-            return path_parts[0], path_parts[1]
-        
+            repo_name = path_parts[1].replace(".git", "")  # Remove .git extension
+            return path_parts[0], repo_name
+
         raise ValueError(f"Invalid repository URL format: {url}")
 
 
@@ -233,6 +344,23 @@ class GitHubPullRequestTool(BaseTool):
     """
     
     config: GitHubConfig = Field(default_factory=GitHubConfig)
+
+    def _create_ssl_context(self) -> Optional[ssl.SSLContext]:
+        """Create SSL context for HTTPS requests."""
+        if not self.config.verify_ssl:
+            return False  # Disable SSL verification
+
+        try:
+            # Create default SSL context
+            context = ssl.create_default_context()
+            return context
+        except Exception as e:
+            logger.warning(f"Failed to create SSL context: {e}")
+            # Fallback to unverified context for development
+            context = ssl.create_default_context()
+            context.check_hostname = False
+            context.verify_mode = ssl.CERT_NONE
+            return context
     
     def _run(
         self,
@@ -263,7 +391,12 @@ class GitHubPullRequestTool(BaseTool):
                 "User-Agent": "CustomLangGraphChatBot/1.0"
             }
             
-            async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=self.config.timeout)) as session:
+            ssl_context = self._create_ssl_context()
+            connector = aiohttp.TCPConnector(ssl=ssl_context)
+            async with aiohttp.ClientSession(
+                timeout=aiohttp.ClientTimeout(total=self.config.timeout),
+                connector=connector
+            ) as session:
                 if pr_number:
                     # Get specific PR
                     pr_url = f"{self.config.base_url}/repos/{owner}/{repo}/pulls/{pr_number}"
@@ -337,14 +470,16 @@ class GitHubPullRequestTool(BaseTool):
         """Parse repository URL to extract owner and repo name."""
         if "/" in url and not url.startswith("http"):
             parts = url.split("/")
-            return parts[0], parts[1]
-        
+            repo_name = parts[1].replace(".git", "")  # Remove .git extension
+            return parts[0], repo_name
+
         parsed = urlparse(url)
         path_parts = parsed.path.strip("/").split("/")
-        
+
         if len(path_parts) >= 2:
-            return path_parts[0], path_parts[1]
-        
+            repo_name = path_parts[1].replace(".git", "")  # Remove .git extension
+            return path_parts[0], repo_name
+
         raise ValueError(f"Invalid repository URL format: {url}")
 
 
