@@ -222,11 +222,17 @@ class TestEmailNotificationTool:
         assert "error" in result
         assert "to_email, subject, and message are required" in result["error"]
     
-    def test_invalid_email_address(self):
+    @patch('smtplib.SMTP')
+    def test_invalid_email_address(self, mock_smtp):
         """Test handling of invalid email addresses."""
         # Set up email credentials to avoid connection issues
         self.tool.config.email_username = "test@example.com"
         self.tool.config.email_password = "password"
+
+        # Mock SMTP to simulate email validation failure
+        mock_server = Mock()
+        mock_server.send_message.side_effect = Exception("Invalid email address")
+        mock_smtp.return_value.__enter__.return_value = mock_server
 
         invalid_email = self.sample_email.copy()
         invalid_email["to_email"] = "invalid-email"
@@ -235,7 +241,6 @@ class TestEmailNotificationTool:
         result = self.tool._run(query)
 
         assert "error" in result
-        # The actual implementation tries to send the email and fails with connection error
         assert "Failed to send email" in result["error"]
 
 

@@ -55,10 +55,12 @@ jobs:
   test:
     needs: quick-check
     runs-on: ubuntu-latest
+    timeout-minutes: 45  # Overall job timeout to prevent hanging
     strategy:
+      fail-fast: false  # Continue running other jobs even if one fails
       matrix:
         python-version: ["3.12"]
-        test-category: [unit, integration, performance, api]
+        test-category: [unit-core, unit-tools, integration, performance, api]
 
     steps:
     - name: Checkout code
@@ -87,6 +89,8 @@ jobs:
         python -m pip install --upgrade pip
         pip install -r requirements.txt
         pip install -r requirements-test.txt
+        # Verify pytest-timeout is available
+        python -c "import pytest_timeout; print('pytest-timeout installed successfully')"
 
     - name: Set up test environment
       run: |
@@ -97,10 +101,14 @@ jobs:
           echo "GITHUB_TOKEN=test-github-token" >> $GITHUB_ENV
         fi
     
-    - name: Run unit tests
-      if: matrix.test-category == 'unit'
+    - name: Run core unit tests (registry, config, basic functionality)
+      if: matrix.test-category == 'unit-core'
+      timeout-minutes: 15
       run: |
         python -m pytest \
+          tests/test_registry.py \
+          tests/test_error_handling.py \
+          tests/test_tool_health.py \
           -m "not integration and not real_params and not performance" \
           --tb=short \
           -v \
@@ -108,12 +116,36 @@ jobs:
           --cov=tools \
           --cov-report=xml \
           --cov-report=term-missing \
-          -n auto
+          --maxfail=5 \
+          -n 2
+
+    - name: Run tool unit tests (individual tool testing)
+      if: matrix.test-category == 'unit-tools'
+      timeout-minutes: 20
+      run: |
+        python -m pytest \
+          tests/test_ai_analysis_tools.py \
+          tests/test_static_analysis_tools.py \
+          tests/test_filesystem_tools.py \
+          tests/test_github_tools.py \
+          tests/test_communication_tools.py \
+          -m "not integration and not real_params and not performance" \
+          --tb=short \
+          -v \
+          --disable-warnings \
+          --cov=tools \
+          --cov-report=xml \
+          --cov-report=term-missing \
+          --maxfail=10 \
+          -n 2
 
     - name: Run integration tests
       if: matrix.test-category == 'integration'
+      timeout-minutes: 15
       run: |
         python -m pytest \
+          tests/test_tools_integration.py \
+          tests/test_workflow_integration.py \
           -m "integration and not real_params" \
           --tb=short \
           -v \
@@ -121,34 +153,60 @@ jobs:
           --cov=tools \
           --cov-report=xml \
           --cov-report=term-missing \
-          -n auto
+          --maxfail=5 \
+          -n 2
 
     - name: Run performance tests
       if: matrix.test-category == 'performance'
+      timeout-minutes: 10
       run: |
         python -m pytest \
+          tests/test_performance.py \
           -m "performance" \
           --tb=short \
           -v \
           --disable-warnings \
-          --durations=10
+          --durations=10 \
+          --maxfail=3
 
     - name: Run API tests
       if: matrix.test-category == 'api'
+      timeout-minutes: 15
       run: |
         python -m pytest \
-          tests/test_api_integration.py tests/test_api_fixed.py tests/test_api_basic.py \
+          tests/test_api_integration.py \
+          tests/test_api_fixed.py \
+          tests/test_api_basic.py \
+          tests/test_api_minimal.py \
+          tests/test_api_simple.py \
           --tb=short \
           -v \
           --disable-warnings \
+          --maxfail=5 \
+          -n 2 \
+          --durations=5
+
+    - name: Generate coverage report (API tests only)
+      if: matrix.test-category == 'api'
+      continue-on-error: true
+      timeout-minutes: 5
+      run: |
+        python -m pytest \
+          tests/test_api_integration.py \
+          tests/test_api_fixed.py \
+          tests/test_api_basic.py \
+          tests/test_api_minimal.py \
+          tests/test_api_simple.py \
           --cov=tools \
           --cov-report=xml \
           --cov-report=term-missing \
-          -n auto \
-          -n auto
-    
+          --maxfail=1 \
+          -q
+
     - name: Upload coverage to Codecov
-      if: matrix.test-category == 'unit' || matrix.test-category == 'integration' || matrix.test-category == 'api'
+      if: matrix.test-category == 'unit-core' || matrix.test-category == 'unit-tools' || matrix.test-category == 'integration' || matrix.test-category == 'api'
+      continue-on-error: true
+      timeout-minutes: 3
       uses: codecov/codecov-action@v3
       with:
         file: ./coverage.xml

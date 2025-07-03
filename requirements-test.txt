@@ -8,6 +8,7 @@ pytest-cov>=6.0.0
 pytest-xdist>=3.0.0
 pytest-mock>=3.14.0
 pytest-asyncio>=1.0.0
+pytest-timeout>=2.3.0
 
 # Performance testing dependencies
 psutil>=5.9.0
