@@ -884,18 +884,6 @@ def test_ai_provider_compatibility(ai_provider, mock_test_environment):
    @pytest.fixture
    def fixture_a(fixture_b): pass
 
-   @pytest.fixture
-   def fixture_b(fixture_a): pass  # Circular!
-
-   # Solution: Redesign fixture hierarchy
-   ```
-
-3. **Fixture Scope Mismatch**
-   ```python
-   # Problem: Function fixture depending on session fixture
-   @pytest.fixture(scope="session")
-   def session_fixture(): pass
-
    @pytest.fixture  # Function scope
    def function_fixture(session_fixture): pass  # OK
 
@@ -922,6 +910,99 @@ def test_ai_provider_compatibility(ai_provider, mock_test_environment):
 5. Ensure all tests pass before submitting PRs
 6. Design reusable fixtures for new test scenarios
 7. Document complex fixture dependencies
+
+### 5. Tool Validation Framework
+
+#### Overview
+The `ToolValidationFramework` provides comprehensive validation for tool configurations, dependencies, API connectivity, and basic functionality before allowing tools to be used in the main workflow. It serves as a pre-flight check system to ensure all required components are properly configured and functioning.
+
+```mermaid
+graph TD
+    A[ToolValidationFramework] --> B[Environment Validation]
+    A --> C[Dependencies Check]
+    A --> D[API Connectivity]
+    A --> E[Tool Registry Validation]
+    A --> F[Filesystem Access]
+    A --> G[Tool Functionality]
+    A --> H[Configuration Integrity]
+    A --> I[Security Settings]
+    
+    B --> J[Validation Results]
+    C --> J
+    D --> J
+    E --> J
+    F --> J
+    G --> J
+    H --> J
+    I --> J
+    
+    J --> K[Validation Summary]
+    K --> L[Pass/Fail Decision]
+```
+
+#### Validation Levels
+- **CRITICAL**: Must pass for workflow to proceed
+- **IMPORTANT**: Should pass, warnings if not
+- **OPTIONAL**: Nice to have, informational only
+
+#### Key Components
+
+1. **Validator Registry**
+   - Environment validation
+   - Dependency checking
+   - API connectivity testing
+   - Tool registry validation
+   - Filesystem access verification
+   - Tool functionality testing
+   - Configuration integrity checking
+   - Security settings validation
+
+2. **Validation Results**
+   - Structured result objects with status, level, and details
+   - Comprehensive error reporting
+   - Execution time tracking
+   - Detailed diagnostics
+
+3. **Integration Points**
+   - Command-line interface for direct execution
+   - Integration with `tools_integration_runner.py`
+   - Pre-workflow validation
+   - CI/CD pipeline integration
+
+#### Usage Examples
+
+```python
+# Direct usage
+from tools.validation_framework import ToolValidationFramework, ValidationLevel
+
+# Create framework instance
+framework = ToolValidationFramework()
+
+# Run specific validators
+summary = await framework.run_validation(
+    validators=["environment_check", "dependencies_check"],
+    level_filter=ValidationLevel.CRITICAL
+)
+
+# Print validation report
+framework.print_validation_report(summary, verbose=True)
+```
+
+```bash
+# Command-line usage
+python -m tools.validation_framework --validators environment_check dependencies_check --level CRITICAL --verbose
+```
+
+#### Relationship to Other Testing Components
+
+The `ToolValidationFramework` complements the existing testing infrastructure by providing:
+
+1. **Pre-flight Validation**: Ensures all tools are properly configured before test execution
+2. **Dependency Verification**: Validates that all required dependencies are available
+3. **API Connectivity**: Tests connections to external services before attempting to use them
+4. **Configuration Integrity**: Verifies that tool configurations are valid and consistent
+
+This framework is particularly important for real parameter tests that interact with external services, as it helps prevent test failures due to misconfiguration or environmental issues.
 
 ---
 

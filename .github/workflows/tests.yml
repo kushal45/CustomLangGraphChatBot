@@ -369,6 +369,10 @@ jobs:
     runs-on: ubuntu-latest
     needs: [test, lint, sanity-check]
     if: github.ref == 'refs/heads/main'
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
 
     steps:
     - name: Checkout code
