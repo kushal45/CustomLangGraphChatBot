@@ -401,16 +401,36 @@ jobs:
           -n auto
 
     - name: Setup Pages
+      id: pages
       uses: actions/configure-pages@v4
+      with:
+        enablement: true
+      continue-on-error: true
 
     - name: Upload coverage report artifact
       uses: actions/upload-pages-artifact@v3
       with:
         path: ./htmlcov
+      if: steps.pages.outcome == 'success'
 
     - name: Deploy to GitHub Pages
       id: deployment
       uses: actions/deploy-pages@v4
+      if: steps.pages.outcome == 'success'
+
+    - name: Pages deployment status
+      run: |
+        if [ "${{ steps.pages.outcome }}" == "success" ]; then
+          echo "✅ Coverage report deployed to GitHub Pages"
+          echo "📊 View coverage at: ${{ steps.deployment.outputs.page_url }}"
+        else
+          echo "⚠️  GitHub Pages not enabled or configured"
+          echo "💡 To enable Pages:"
+          echo "   1. Go to Settings → Pages"
+          echo "   2. Set Source to 'GitHub Actions'"
+          echo "   3. Save settings"
+          echo "📁 Coverage report generated locally in ./htmlcov/"
+        fi
 
   # Real parameter tests (only on main branch with secrets)
   # Note: GROQ_API_KEY and XAI_API_KEY secrets need to be configured in repository settings
