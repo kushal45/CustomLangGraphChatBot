@@ -50,7 +50,7 @@ jobs:
 
     - name: Quick test run (fastest tests only)
       run: |
-        python -m pytest tests/test_registry.py -v --tb=short --disable-warnings
+        python -m pytest tests/unit/test_registry.py -v --tb=short --disable-warnings
 
   test:
     needs: quick-check
@@ -60,7 +60,7 @@ jobs:
       fail-fast: false  # Continue running other jobs even if one fails
       matrix:
         python-version: ["3.12"]
-        test-category: [unit-core, unit-tools, integration, performance, api]
+        test-category: [unit, integration, performance]
 
     steps:
     - name: Checkout code
@@ -101,110 +101,111 @@ jobs:
           echo "GITHUB_TOKEN=test-github-token" >> $GITHUB_ENV
         fi
     
-    - name: Run core unit tests (registry, config, basic functionality)
-      if: matrix.test-category == 'unit-core'
-      timeout-minutes: 15
+    - name: Run unit tests (all individual component tests)
+      if: matrix.test-category == 'unit'
+      timeout-minutes: 25
       run: |
         python -m pytest \
-          tests/test_registry.py \
-          tests/test_error_handling.py \
-          tests/test_tool_health.py \
+          tests/unit/ \
           -m "not integration and not real_params and not performance" \
           --tb=short \
           -v \
           --disable-warnings \
           --cov=tools \
+          --cov=scripts \
+          --cov=nodes \
           --cov-report=xml \
           --cov-report=term-missing \
-          --maxfail=5 \
-          -n 2
+          --maxfail=15 \
+          -n 2 \
+          --durations=10
 
-    - name: Run tool unit tests (individual tool testing)
-      if: matrix.test-category == 'unit-tools'
-      timeout-minutes: 20
+    - name: Run integration tests (component interaction and workflow tests)
+      if: matrix.test-category == 'integration'
+      timeout-minutes: 30
       run: |
         python -m pytest \
-          tests/test_ai_analysis_tools.py \
-          tests/test_static_analysis_tools.py \
-          tests/test_filesystem_tools.py \
-          tests/test_github_tools.py \
-          tests/test_communication_tools.py \
-          -m "not integration and not real_params and not performance" \
+          tests/integration/ \
+          -m "not real_params and not performance" \
           --tb=short \
           -v \
           --disable-warnings \
           --cov=tools \
+          --cov=workflow \
+          --cov=nodes \
+          --cov=api \
           --cov-report=xml \
           --cov-report=term-missing \
           --maxfail=10 \
-          -n 2
+          -n 2 \
+          --durations=15
 
-    - name: Run integration tests
-      if: matrix.test-category == 'integration'
+    - name: Run performance tests (load and stress testing)
+      if: matrix.test-category == 'performance'
       timeout-minutes: 15
       run: |
         python -m pytest \
-          tests/test_tools_integration.py \
-          tests/test_workflow_integration.py \
-          -m "integration and not real_params" \
+          tests/performance/ \
+          -m "performance or not performance" \
           --tb=short \
           -v \
           --disable-warnings \
-          --cov=tools \
-          --cov-report=xml \
-          --cov-report=term-missing \
+          --durations=20 \
           --maxfail=5 \
-          -n 2
+          --benchmark-only \
+          --benchmark-sort=mean
 
-    - name: Run performance tests
-      if: matrix.test-category == 'performance'
+    - name: Test debugging scripts functionality
+      if: matrix.test-category == 'unit'
+      timeout-minutes: 15
+      run: |
+        # Test node debugging script
+        python scripts/debug_node.py --node start_review_node --sample-state --output-file test_state.json
+
+        # Test state inspection script
+        python scripts/inspect_state.py --file test_state.json --analyze
+
+        # Test node serialization system
+        python scripts/node_serialization.py
+
+        # Test node replay system
+        python scripts/node_replay.py
+
+        # Test node profiling system
+        python scripts/node_profiling.py
+
+        # Test flow visualization system
+        python scripts/node_flow_diagrams.py
+
+        echo "✅ All debugging scripts executed successfully"
+
+    - name: Test workflow debugging capabilities
+      if: matrix.test-category == 'integration'
       timeout-minutes: 10
       run: |
-        python -m pytest \
-          tests/test_performance.py \
-          -m "performance" \
-          --tb=short \
-          -v \
-          --disable-warnings \
-          --durations=10 \
-          --maxfail=3
+        # Test workflow state transitions
+        python -c "
+        import asyncio
+        from tests.integration.test_workflow_debugging import WorkflowTestFixtures
+        from nodes import start_review_node, analyze_code_node, generate_report_node
 
-    - name: Run API tests
-      if: matrix.test-category == 'api'
-      timeout-minutes: 15
-      run: |
-        python -m pytest \
-          tests/test_api_integration.py \
-          tests/test_api_fixed.py \
-          tests/test_api_basic.py \
-          tests/test_api_minimal.py \
-          tests/test_api_simple.py \
-          --tb=short \
-          -v \
-          --disable-warnings \
-          --maxfail=5 \
-          -n 2 \
-          --durations=5
+        async def test_workflow():
+            state = WorkflowTestFixtures.create_initial_state()
+            result1 = await start_review_node(state)
+            state.update(result1)
+            result2 = await analyze_code_node(state)
+            state.update(result2)
+            result3 = await generate_report_node(state)
+            state.update(result3)
+            print('✅ Workflow execution test passed')
 
-    - name: Generate coverage report (API tests only)
-      if: matrix.test-category == 'api'
-      continue-on-error: true
-      timeout-minutes: 5
-      run: |
-        python -m pytest \
-          tests/test_api_integration.py \
-          tests/test_api_fixed.py \
-          tests/test_api_basic.py \
-          tests/test_api_minimal.py \
-          tests/test_api_simple.py \
-          --cov=tools \
-          --cov-report=xml \
-          --cov-report=term-missing \
-          --maxfail=1 \
-          -q
+        asyncio.run(test_workflow())
+        "
+
+        echo "✅ Workflow debugging capabilities verified"
 
     - name: Upload coverage to Codecov
-      if: matrix.test-category == 'unit-core' || matrix.test-category == 'unit-tools' || matrix.test-category == 'integration' || matrix.test-category == 'api'
+      if: matrix.test-category == 'unit' || matrix.test-category == 'integration'
       continue-on-error: true
       timeout-minutes: 3
       uses: codecov/codecov-action@v3
@@ -225,7 +226,9 @@ jobs:
           "test_analysis_tools_sanity",
           "test_ai_analysis_tools_sanity",
           "test_github_tools_sanity",
-          "test_communication_tools_sanity"
+          "test_communication_tools_sanity",
+          "test_debugging_tools_sanity",
+          "test_workflow_integration_sanity"
         ]
       fail-fast: false  # Continue running other tests even if one fails
 
@@ -245,8 +248,9 @@ jobs:
         pip install -r requirements-test.txt
 
     - name: Run sanity check - ${{ matrix.sanity-test }}
+      timeout-minutes: 15
       run: |
-        python -m pytest tests/test_module_sanity.py::${{ matrix.sanity-test }} \
+        python -m pytest tests/unit/test_module_sanity.py::${{ matrix.sanity-test }} \
           --tb=short -v --disable-warnings -s
       continue-on-error: true  # Allow individual sanity tests to fail without stopping the workflow
 

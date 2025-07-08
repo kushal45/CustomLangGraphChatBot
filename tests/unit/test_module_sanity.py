@@ -782,6 +782,125 @@ def test_communication_tools_sanity():
         checker.teardown()
 
 
+def test_debugging_tools_sanity():
+    """Sanity test for debugging tools and scripts."""
+    print("\n🔧 Testing Debugging Tools Sanity...")
+
+    try:
+        # Test basic functionality with temporary directory for logs
+        with tempfile.TemporaryDirectory() as temp_dir:
+            # Set temporary log directory to avoid read-only filesystem issues
+            original_log_dir = os.environ.get('LOG_DIR')
+            os.environ['LOG_DIR'] = temp_dir
+
+            try:
+                # Test imports (after setting LOG_DIR to avoid read-only filesystem issues)
+                from scripts.debug_node import NodeDebugger
+                from scripts.inspect_state import StateInspector
+                from scripts.node_tracing import get_tracer
+                from scripts.node_serialization import get_serializer
+                from scripts.node_replay import get_replay_engine
+                from scripts.node_profiling import get_profiler
+                from scripts.node_flow_diagrams import get_visualizer
+
+                print("✅ All debugging tool imports successful")
+
+                debugger = NodeDebugger()
+                inspector = StateInspector()
+                tracer = get_tracer()
+                serializer = get_serializer()
+                replay_engine = get_replay_engine()
+                profiler = get_profiler()
+                visualizer = get_visualizer()
+            finally:
+                # Restore original log directory
+                if original_log_dir:
+                    os.environ['LOG_DIR'] = original_log_dir
+                elif 'LOG_DIR' in os.environ:
+                    del os.environ['LOG_DIR']
+
+            print("✅ All debugging tool instances created successfully")
+
+            # Test sample state generation
+            sample_state = debugger.create_sample_state("start_review_node")
+            assert sample_state is not None
+            assert "current_step" in sample_state
+
+            print("✅ Sample state generation working")
+
+            # Test state inspection
+            analysis = inspector.analyze_state(sample_state)
+            assert analysis is not None
+            assert hasattr(analysis, 'completeness_score')
+
+            print("✅ State inspection working")
+
+            # Test serialization
+            serialized = serializer.serialize_node_input("test_node", sample_state)
+            assert serialized is not None
+            assert serialized.metadata is not None
+
+            print("✅ Node serialization working")
+
+        print("✅ Debugging tools sanity check passed!")
+
+    except Exception as e:
+        print(f"❌ Debugging tools sanity check failed: {e}")
+        pytest.fail(f"Debugging tools sanity check failed: {e}")
+
+
+def test_workflow_integration_sanity():
+    """Sanity test for workflow integration testing."""
+    print("\n🔄 Testing Workflow Integration Sanity...")
+
+    try:
+        # Test workflow integration with temporary directory for logs
+        with tempfile.TemporaryDirectory() as temp_dir:
+            # Set temporary log directory to avoid read-only filesystem issues
+            original_log_dir = os.environ.get('LOG_DIR')
+            os.environ['LOG_DIR'] = temp_dir
+
+            try:
+                # Test imports (after setting LOG_DIR to avoid read-only filesystem issues)
+                from tests.integration.test_workflow_debugging import WorkflowTestFixtures, TestWorkflowIntegration
+                from workflow import should_continue, create_review_workflow
+                from nodes import start_review_node, analyze_code_node, generate_report_node, error_handler_node
+
+                print("✅ All workflow integration imports successful")
+
+                # Test fixture creation
+                fixtures = WorkflowTestFixtures()
+                initial_state = fixtures.create_initial_state()
+                assert initial_state is not None
+                assert "current_step" in initial_state
+
+                print("✅ Workflow test fixtures working")
+
+                # Test should_continue function
+                result = should_continue(initial_state)
+                assert result in ["continue", "error_handler"]
+
+                print("✅ Workflow conditional logic working")
+
+                # Test workflow graph creation
+                workflow_graph = create_review_workflow()
+                assert workflow_graph is not None
+
+                print("✅ Workflow graph creation working")
+            finally:
+                # Restore original log directory
+                if original_log_dir:
+                    os.environ['LOG_DIR'] = original_log_dir
+                elif 'LOG_DIR' in os.environ:
+                    del os.environ['LOG_DIR']
+
+        print("✅ Workflow integration sanity check passed!")
+
+    except Exception as e:
+        print(f"❌ Workflow integration sanity check failed: {e}")
+        pytest.fail(f"Workflow integration sanity check failed: {e}")
+
+
 def test_full_sanity_check():
     """Run full sanity check with real parameters."""
     results = run_sanity_checks(verbose=True, use_real_params=True)
