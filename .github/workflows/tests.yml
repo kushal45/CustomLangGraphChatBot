@@ -89,6 +89,24 @@ jobs:
         python -m pip install --upgrade pip
         pip install -r requirements.txt
         pip install -r requirements-test.txt
+
+    - name: Display environment information
+      run: |
+        echo "🔍 Environment Information:"
+        echo "=========================="
+        echo "Python version: $(python --version)"
+        echo "Pip version: $(pip --version)"
+        echo "Test category: ${{ matrix.test-category }}"
+        echo "Runner OS: ${{ runner.os }}"
+        echo ""
+        echo "📦 Key package versions:"
+        pip show pytest pytest-cov pytest-xdist pytest-benchmark || echo "Some packages not found"
+        echo ""
+        echo "💾 Available disk space:"
+        df -h
+        echo ""
+        echo "📁 Current directory contents:"
+        ls -la
         # Verify pytest-timeout is available
         python -c "import pytest_timeout; print('pytest-timeout installed successfully')"
 
@@ -105,10 +123,15 @@ jobs:
       if: matrix.test-category == 'unit'
       timeout-minutes: 25
       run: |
+        echo "🧪 Starting unit tests..."
+        echo "Test files to be executed:"
+        find tests/unit/ -name "*.py" -type f | head -10
+        echo ""
+
         python -m pytest \
           tests/unit/ \
           -m "not integration and not real_params and not performance" \
-          --tb=short \
+          --tb=long \
           -v \
           --disable-warnings \
           --cov=tools \
@@ -118,16 +141,22 @@ jobs:
           --cov-report=term-missing \
           --maxfail=15 \
           -n 2 \
-          --durations=10
+          --durations=10 \
+          --junit-xml=unit-results.xml
 
     - name: Run integration tests (component interaction and workflow tests)
       if: matrix.test-category == 'integration'
       timeout-minutes: 30
       run: |
+        echo "🔄 Starting integration tests..."
+        echo "Test files to be executed:"
+        find tests/integration/ -name "*.py" -type f
+        echo ""
+
         python -m pytest \
           tests/integration/ \
           -m "not real_params and not performance" \
-          --tb=short \
+          --tb=long \
           -v \
           --disable-warnings \
           --cov=tools \
@@ -138,46 +167,180 @@ jobs:
           --cov-report=term-missing \
           --maxfail=10 \
           -n 2 \
-          --durations=15
+          --durations=15 \
+          --junit-xml=integration-results.xml
 
     - name: Run performance tests (load and stress testing)
       if: matrix.test-category == 'performance'
       timeout-minutes: 15
       run: |
+        echo "🚀 Starting performance tests..."
+        echo "Test files to be executed:"
+        find tests/performance/ -name "*.py" -type f
+        echo ""
+        echo "📊 Performance test details:"
+        python -m pytest tests/performance/ --collect-only -q
+        echo ""
+
+        # Run with detailed output and error handling
         python -m pytest \
           tests/performance/ \
-          -m "performance or not performance" \
-          --tb=short \
+          --tb=long \
           -v \
-          --disable-warnings \
+          -s \
+          --capture=no \
           --durations=20 \
           --maxfail=5 \
-          --benchmark-only \
-          --benchmark-sort=mean
+          --benchmark-skip \
+          --junit-xml=performance-results.xml \
+          --html=performance-report.html \
+          --self-contained-html \
+          --log-cli-level=INFO \
+          --log-cli-format='%(asctime)s [%(levelname)8s] %(name)s: %(message)s' \
+          --log-cli-date-format='%Y-%m-%d %H:%M:%S' || {
+            echo "❌ Performance tests failed"
+            echo "📋 Showing detailed error information..."
+            if [ -f "performance-results.xml" ]; then
+              echo "JUnit XML results:"
+              cat performance-results.xml
+            fi
+            exit 1
+          }
+
+    - name: Collect test logs and artifacts
+      if: always()  # Run even if tests fail
+      run: |
+        echo "📊 Collecting test artifacts and logs..."
+
+        # Create artifacts directory
+        mkdir -p test-artifacts
+
+        # Collect pytest results
+        if [ -f "unit-results.xml" ]; then
+          cp unit-results.xml test-artifacts/
+          echo "✅ Unit test results collected"
+        fi
+
+        if [ -f "integration-results.xml" ]; then
+          cp integration-results.xml test-artifacts/
+          echo "✅ Integration test results collected"
+        fi
+
+        if [ -f "performance-results.xml" ]; then
+          cp performance-results.xml test-artifacts/
+          echo "✅ Performance test results collected"
+        fi
+
+        if [ -f "performance-report.html" ]; then
+          cp performance-report.html test-artifacts/
+          echo "✅ Performance HTML report collected"
+        fi
+
+        # Collect coverage reports
+        if [ -f "coverage.xml" ]; then
+          cp coverage.xml test-artifacts/
+          echo "✅ Coverage report collected"
+        fi
+
+        # Collect any log files that might have been created
+        if [ -d "logs" ]; then
+          cp -r logs test-artifacts/ 2>/dev/null || echo "No logs directory found"
+        fi
+
+        # Show test summary
+        echo ""
+        echo "📋 Test Artifacts Summary:"
+        ls -la test-artifacts/ || echo "No artifacts collected"
+
+    - name: Upload test artifacts
+      if: always()  # Upload even if tests fail
+      uses: actions/upload-artifact@v4
+      with:
+        name: test-results-${{ matrix.test-category }}-${{ matrix.python-version }}
+        path: test-artifacts/
+        retention-days: 30
+
+    - name: Display test failure details
+      if: failure()
+      run: |
+        echo "❌ Test execution failed for category: ${{ matrix.test-category }}"
+        echo ""
+        echo "📊 System Information:"
+        echo "Python version: ${{ matrix.python-version }}"
+        echo "Test category: ${{ matrix.test-category }}"
+        echo "Runner OS: ${{ runner.os }}"
+        echo ""
+        echo "📋 Available files in workspace:"
+        ls -la
+        echo ""
+        echo "🔍 Checking for error logs..."
+        if [ -f "pytest.log" ]; then
+          echo "Pytest log found:"
+          cat pytest.log
+        fi
+
+        echo ""
+        echo "💾 Disk space:"
+        df -h
+        echo ""
+        echo "🧠 Memory usage:"
+        free -h || echo "Memory info not available"
 
     - name: Test debugging scripts functionality
       if: matrix.test-category == 'unit'
       timeout-minutes: 15
       run: |
+        echo "🔧 Testing debugging scripts functionality..."
+
         # Test node debugging script
-        python scripts/debug_node.py --node start_review_node --sample-state --output-file test_state.json
+        echo "Testing node debugging script..."
+        python scripts/debug_node.py --node start_review_node --sample-state --output-file test_state.json || {
+          echo "❌ Node debugging script failed"
+          exit 1
+        }
+        echo "✅ Node debugging script passed"
 
         # Test state inspection script
-        python scripts/inspect_state.py --file test_state.json --analyze
+        echo "Testing state inspection script..."
+        python scripts/inspect_state.py --file test_state.json --analyze || {
+          echo "❌ State inspection script failed"
+          exit 1
+        }
+        echo "✅ State inspection script passed"
 
         # Test node serialization system
-        python scripts/node_serialization.py
+        echo "Testing node serialization system..."
+        python scripts/node_serialization.py || {
+          echo "❌ Node serialization script failed"
+          exit 1
+        }
+        echo "✅ Node serialization script passed"
 
         # Test node replay system
-        python scripts/node_replay.py
+        echo "Testing node replay system..."
+        python scripts/node_replay.py || {
+          echo "❌ Node replay script failed"
+          exit 1
+        }
+        echo "✅ Node replay script passed"
 
         # Test node profiling system
-        python scripts/node_profiling.py
+        echo "Testing node profiling system..."
+        python scripts/node_profiling.py || {
+          echo "❌ Node profiling script failed"
+          exit 1
+        }
+        echo "✅ Node profiling script passed"
 
         # Test flow visualization system
-        python scripts/node_flow_diagrams.py
+        echo "Testing flow visualization system..."
+        python scripts/node_flow_diagrams.py || {
+          echo "❌ Flow visualization script failed"
+          exit 1
+        }
+        echo "✅ Flow visualization script passed"
 
-        echo "✅ All debugging scripts executed successfully"
+        echo "🎉 All debugging scripts executed successfully"
 
     - name: Test workflow debugging capabilities
       if: matrix.test-category == 'integration'
