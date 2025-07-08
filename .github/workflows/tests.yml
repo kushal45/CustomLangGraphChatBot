@@ -183,6 +183,7 @@ jobs:
         echo ""
 
         # Run with detailed output and error handling
+        set +e  # Don't exit immediately on error
         python -m pytest \
           tests/performance/ \
           --tb=long \
@@ -197,15 +198,85 @@ jobs:
           --self-contained-html \
           --log-cli-level=INFO \
           --log-cli-format='%(asctime)s [%(levelname)8s] %(name)s: %(message)s' \
-          --log-cli-date-format='%Y-%m-%d %H:%M:%S' || {
-            echo "❌ Performance tests failed"
-            echo "📋 Showing detailed error information..."
-            if [ -f "performance-results.xml" ]; then
-              echo "JUnit XML results:"
-              cat performance-results.xml
-            fi
-            exit 1
-          }
+          --log-cli-date-format='%Y-%m-%d %H:%M:%S'
+
+        PYTEST_EXIT_CODE=$?
+
+        echo ""
+        echo "📊 Performance test execution completed with exit code: $PYTEST_EXIT_CODE"
+
+        if [ $PYTEST_EXIT_CODE -ne 0 ]; then
+          echo "❌ Performance tests failed"
+          echo "📋 Showing detailed error information..."
+
+          # Show any generated files
+          echo "Generated files:"
+          ls -la *.xml *.html 2>/dev/null || echo "No XML/HTML files generated"
+
+          # Show JUnit XML if it exists
+          if [ -f "performance-results.xml" ]; then
+            echo ""
+            echo "📄 JUnit XML results:"
+            cat performance-results.xml
+          fi
+
+          # Show any pytest logs
+          if [ -f "pytest.log" ]; then
+            echo ""
+            echo "📄 Pytest log:"
+            cat pytest.log
+          fi
+
+          # Create a failure summary
+          echo ""
+          echo "🔍 Failure Summary:" > performance-failure.txt
+          echo "Exit Code: $PYTEST_EXIT_CODE" >> performance-failure.txt
+          echo "Timestamp: $(date)" >> performance-failure.txt
+          echo "Test Category: performance" >> performance-failure.txt
+          echo "Python Version: ${{ matrix.python-version }}" >> performance-failure.txt
+
+          set -e  # Re-enable exit on error
+          exit $PYTEST_EXIT_CODE
+        else
+          echo "✅ Performance tests passed successfully"
+        fi
+
+    - name: Capture performance test failure details
+      if: failure() && matrix.test-category == 'performance'
+      run: |
+        echo "🔍 Capturing detailed performance test failure information..."
+
+        # Create failure report directory
+        mkdir -p failure-details
+
+        # Capture current directory state
+        echo "=== Directory Contents ===" > failure-details/directory-state.txt
+        ls -la >> failure-details/directory-state.txt
+
+        # Capture any generated test files
+        echo "=== Generated Test Files ===" >> failure-details/directory-state.txt
+        find . -name "*.xml" -o -name "*.html" -o -name "*.log" -o -name "*.txt" | head -20 >> failure-details/directory-state.txt
+
+        # Capture pytest cache information
+        if [ -d ".pytest_cache" ]; then
+          echo "=== Pytest Cache Contents ===" > failure-details/pytest-cache.txt
+          find .pytest_cache -type f | head -10 >> failure-details/pytest-cache.txt
+        fi
+
+        # Capture environment variables
+        echo "=== Environment Variables ===" > failure-details/environment.txt
+        env | grep -E "(PYTHON|PATH|PYTEST|TEST)" >> failure-details/environment.txt
+
+        # Capture Python package information
+        echo "=== Python Packages ===" > failure-details/packages.txt
+        pip list >> failure-details/packages.txt
+
+        # Try to run a simple performance test to see what's failing
+        echo "=== Simple Test Execution ===" > failure-details/simple-test.txt
+        python -c 'import sys\nprint(f"Python version: {sys.version}")\ntry:\n    import pytest\n    print(f"Pytest version: {pytest.__version__}")\nexcept Exception as e:\n    print(f"Pytest import error: {e}")\n\ntry:\n    import tests.performance\n    print("Performance tests module imported successfully")\nexcept Exception as e:\n    print(f"Performance tests import error: {e}")' >> failure-details/simple-test.txt 2>&1
+
+        echo "📊 Failure details captured in failure-details/ directory"
+        ls -la failure-details/
 
     - name: Collect test logs and artifacts
       if: always()  # Run even if tests fail
@@ -215,50 +286,99 @@ jobs:
         # Create artifacts directory
         mkdir -p test-artifacts
 
+        # Always create a basic info file
+        echo "Test Category: ${{ matrix.test-category }}" > test-artifacts/test-info.txt
+        echo "Python Version: ${{ matrix.python-version }}" >> test-artifacts/test-info.txt
+        echo "Runner OS: ${{ runner.os }}" >> test-artifacts/test-info.txt
+        echo "Timestamp: $(date)" >> test-artifacts/test-info.txt
+        echo "Workflow Run: ${{ github.run_id }}" >> test-artifacts/test-info.txt
+
+        # Collect system information
+        echo "=== System Information ===" > test-artifacts/system-info.txt
+        echo "Python version: $(python --version)" >> test-artifacts/system-info.txt
+        echo "Pip version: $(pip --version)" >> test-artifacts/system-info.txt
+        echo "Current directory: $(pwd)" >> test-artifacts/system-info.txt
+        echo "Available disk space:" >> test-artifacts/system-info.txt
+        df -h >> test-artifacts/system-info.txt
+        echo "" >> test-artifacts/system-info.txt
+        echo "Directory contents:" >> test-artifacts/system-info.txt
+        ls -la >> test-artifacts/system-info.txt
+
         # Collect pytest results
         if [ -f "unit-results.xml" ]; then
           cp unit-results.xml test-artifacts/
           echo "✅ Unit test results collected"
+        else
+          echo "❌ No unit test results found" >> test-artifacts/test-info.txt
         fi
 
         if [ -f "integration-results.xml" ]; then
           cp integration-results.xml test-artifacts/
           echo "✅ Integration test results collected"
+        else
+          echo "❌ No integration test results found" >> test-artifacts/test-info.txt
         fi
 
         if [ -f "performance-results.xml" ]; then
           cp performance-results.xml test-artifacts/
           echo "✅ Performance test results collected"
+        else
+          echo "❌ No performance test results found" >> test-artifacts/test-info.txt
         fi
 
         if [ -f "performance-report.html" ]; then
           cp performance-report.html test-artifacts/
           echo "✅ Performance HTML report collected"
+        else
+          echo "❌ No performance HTML report found" >> test-artifacts/test-info.txt
         fi
 
         # Collect coverage reports
         if [ -f "coverage.xml" ]; then
           cp coverage.xml test-artifacts/
           echo "✅ Coverage report collected"
+        else
+          echo "❌ No coverage report found" >> test-artifacts/test-info.txt
         fi
 
         # Collect any log files that might have been created
         if [ -d "logs" ]; then
-          cp -r logs test-artifacts/ 2>/dev/null || echo "No logs directory found"
+          cp -r logs test-artifacts/ 2>/dev/null && echo "✅ Logs directory collected" || echo "❌ Failed to copy logs directory"
+        else
+          echo "❌ No logs directory found" >> test-artifacts/test-info.txt
+        fi
+
+        # Collect any pytest cache or temporary files
+        if [ -d ".pytest_cache" ]; then
+          cp -r .pytest_cache test-artifacts/ 2>/dev/null && echo "✅ Pytest cache collected" || echo "❌ Failed to copy pytest cache"
+        fi
+
+        # Collect failure details if they exist
+        if [ -d "failure-details" ]; then
+          cp -r failure-details test-artifacts/ 2>/dev/null && echo "✅ Failure details collected" || echo "❌ Failed to copy failure details"
+        fi
+
+        # Collect any additional failure files
+        if [ -f "performance-failure.txt" ]; then
+          cp performance-failure.txt test-artifacts/ && echo "✅ Performance failure summary collected"
         fi
 
         # Show test summary
         echo ""
         echo "📋 Test Artifacts Summary:"
-        ls -la test-artifacts/ || echo "No artifacts collected"
+        ls -la test-artifacts/
+        echo ""
+        echo "📄 Test Info Contents:"
+        cat test-artifacts/test-info.txt
 
     - name: Upload test artifacts
       if: always()  # Upload even if tests fail
       uses: actions/upload-artifact@v4
       with:
-        name: test-results-${{ matrix.test-category }}-${{ matrix.python-version }}
+        name: test-results-${{ matrix.test-category }}-${{ matrix.python-version }}-${{ github.run_id }}
         path: test-artifacts/
         retention-days: 30
+        if-no-files-found: warn  # Don't fail if no files found, just warn
 
     - name: Display test failure details
       if: failure()
