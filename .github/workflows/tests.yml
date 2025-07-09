@@ -192,7 +192,6 @@ jobs:
           --capture=no \
           --durations=20 \
           --maxfail=5 \
-          --benchmark-skip \
           --junit-xml=performance-results.xml \
           --html=performance-report.html \
           --self-contained-html \
