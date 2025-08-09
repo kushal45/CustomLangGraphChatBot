@@ -21,6 +21,7 @@ from datetime import datetime
 from state import ReviewState, ReviewStatus, RepositoryInfo, ToolResult, AnalysisResults
 from nodes import start_review_node, analyze_code_node, generate_report_node, error_handler_node
 from tools.registry import ToolRegistry, ToolConfig
+from debug.repository_debugging import repo_debugger
 
 
 class NodeTestFixtures:
@@ -355,6 +356,68 @@ class TestStartReviewNode:
         assert isinstance(result, dict)
         assert "current_step" in result
         assert result["current_step"] == "analyze_code"
+
+    @pytest.mark.asyncio
+    async def test_start_review_node_with_debugging(self):
+        """Test start_review_node with comprehensive debugging breakpoints."""
+        # Arrange - Create realistic test state
+        state = NodeTestFixtures.create_start_review_state()
+
+        # Add debugging context
+        test_context = {
+            "test_name": "test_start_review_node_with_debugging",
+            "test_purpose": "Validate repository fetching with debugging breakpoints",
+            "expected_breakpoints": [
+                "1_initial_state_validation",
+                "2_url_validation_success",
+                "3_tool_registry_init",
+                "4_before_github_api_call",
+                "5_after_github_api_call",
+                "6_repository_info_extraction",
+                "7_tool_selection_final",
+                "8_final_success_state"
+            ]
+        }
+
+        # 🔍 DEBUG BREAKPOINT: Test Start
+        repo_debugger.debug_breakpoint(
+            "test_start",
+            state,
+            test_context
+        )
+
+        # Act - Execute the node with debugging
+        result = await start_review_node(state)
+
+        # 🔍 DEBUG BREAKPOINT: Test Result Analysis
+        repo_debugger.debug_breakpoint(
+            "test_result_analysis",
+            result,
+            {
+                "test_completed": True,
+                "result_keys": list(result.keys()) if result else [],
+                "success": result.get("status") != ReviewStatus.FAILED,
+                "debug_session": repo_debugger.debug_session_id
+            }
+        )
+
+        # Assert - Validate results with debugging context
+        assert isinstance(result, dict), "Result should be a dictionary"
+        assert "current_step" in result, "Result should contain current_step"
+        assert "status" in result, "Result should contain status"
+        assert "repository_info" in result, "Result should contain repository_info"
+        assert "enabled_tools" in result, "Result should contain enabled_tools"
+
+        # Validate that debugging breakpoints were hit
+        assert len(repo_debugger.breakpoint_history) > 0, "Debugging breakpoints should have been triggered"
+
+        # Print debugging summary for test analysis
+        print(f"\n🔍 Debugging Test Summary:")
+        print(f"   Debug Session: {repo_debugger.debug_session_id}")
+        print(f"   Breakpoints Hit: {len(repo_debugger.breakpoint_history)}")
+        print(f"   Test Result: {'✅ PASSED' if result.get('status') != ReviewStatus.FAILED else '❌ FAILED'}")
+
+        repo_debugger.print_debug_summary()
 
     @pytest.mark.asyncio
     async def test_start_review_node_input_validation(self):
