@@ -602,6 +602,52 @@ class MyCustomTool(BaseTool):
 - **v2.0.0**: Added comprehensive external tools ecosystem
 - **v2.1.0**: Migrated from OpenAI to Grok for free AI analysis
 - **v2.2.0**: Enhanced testing infrastructure and validation
+- **v2.3.0**: Complete debugging infrastructure with VSCode integration
+
+## 🔧 **Debugging & Development**
+
+### **VSCode Debugging Guide**
+For external contributors and developers, we provide a comprehensive debugging infrastructure:
+
+📖 **[Complete VSCode Debugging Guide](VSCODE_DEBUGGING_GUIDE.md)**
+
+**🎯 What's Included:**
+- **21 debugging configurations** covering every scenario
+- **Visual flow diagrams** for understanding debugging paths
+- **Step-by-step examples** for common debugging tasks
+- **Comprehensive troubleshooting** guide with solutions
+- **Performance optimization** tips and best practices
+
+**🚀 Quick Start:**
+```bash
+# 1. Open VSCode in project root
+# 2. Press F5 or go to Run and Debug (Ctrl+Shift+D)
+# 3. Select from 21 debugging configurations:
+
+🚀 Main Application Issues     → Main Application Debugging
+🔧 Individual Node Problems   → Node Debugging Tools
+🔍 State/Data Issues          → State Inspection Tools
+📊 Performance Problems       → Advanced Debugging Tools
+🧪 Test Failures             → Testing & Workflow Debugging
+🌐 API/Integration Issues     → API & Webhook Debugging
+🔄 End-to-End Workflow Issues → Workflow Execution Debugging
+```
+
+**🔧 Available Debugging Tools:**
+- **Node-level debugging** with tracing and profiling
+- **State inspection and comparison** tools
+- **Interactive debugging** sessions
+- **Performance profiling** and bottleneck analysis
+- **Complete test suite** debugging support
+- **API and webhook** debugging capabilities
+- **End-to-end workflow** debugging with error scenarios
+
+### **Development Workflow**
+1. **Setup**: Follow setup requirements above
+2. **Debug**: Use appropriate VSCode debugging configuration
+3. **Test**: Run comprehensive test suite
+4. **Validate**: Use validation scripts
+5. **Contribute**: Submit PRs with proper testing
 
 ## 🏆 Acknowledgments
 
@@ -620,7 +666,10 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ### Getting Help
 - **Issues**: [GitHub Issues](https://github.com/kushal45/CustomLangGraphChatBot/issues)
 - **Discussions**: [GitHub Discussions](https://github.com/kushal45/CustomLangGraphChatBot/discussions)
-- **Documentation**: Check `TESTING.md` for detailed guides
+- **Documentation**:
+  - `TESTING.md` - Comprehensive testing guide
+  - `VSCODE_DEBUGGING_GUIDE.md` - Complete debugging manual
+  - `TESTING_ARCHITECTURE.md` - Testing framework documentation
 
 ### Maintainers
 - **Kushal Bhattacharya** ([@kushal45](https://github.com/kushal45))

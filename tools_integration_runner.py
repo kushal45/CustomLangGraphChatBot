@@ -40,8 +40,8 @@ project_root = Path(__file__).parent
 sys.path.insert(0, str(project_root))
 
 # Import our test modules
-from tests.test_module_sanity import run_sanity_checks
-from tests.test_tool_health import run_health_checks
+from tests.unit.test_module_sanity import run_sanity_checks
+from tests.integration.test_tool_health import run_health_checks
 
 
 class ToolIntegrationRunner:
