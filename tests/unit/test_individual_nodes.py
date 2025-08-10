@@ -21,7 +21,6 @@ from datetime import datetime
 from state import ReviewState, ReviewStatus, RepositoryInfo, ToolResult, AnalysisResults
 from nodes import start_review_node, analyze_code_node, generate_report_node, error_handler_node
 from tools.registry import ToolRegistry, ToolConfig
-from debug.repository_debugging import repo_debugger
 
 
 class NodeTestFixtures:
@@ -343,11 +342,44 @@ class StateSnapshotManager:
 class TestStartReviewNode:
     """Comprehensive isolated testing for start_review_node."""
 
+    def setup_method(self):
+        """Setup method to disable debugging for all tests."""
+        from debug.repository_debugging import repo_debugger
+        repo_debugger.set_debug_enabled(False)
+
     @pytest.mark.asyncio
-    async def test_start_review_node_basic_execution(self):
+    @patch('tools.registry.ToolRegistry.get_tool')
+    async def test_start_review_node_basic_execution(self, mock_get_tool):
         """Test basic execution of start_review_node."""
         # Arrange
         state = NodeTestFixtures.create_start_review_state()
+
+        # Create a mock GitHub tool
+        mock_github_tool = AsyncMock()
+        mock_github_tool._arun.return_value = {
+            "success": True,
+            "result": {
+                "name": "test-repo",
+                "full_name": "test/test-repo",
+                "description": "Test repository",
+                "language": "Python",
+                "stars": 42,
+                "forks": 7,
+                "files": [
+                    {"name": "main.py", "type": "file"},
+                    {"name": "requirements.txt", "type": "file"},
+                    {"name": "README.md", "type": "file"}
+                ]
+            }
+        }
+
+        # Mock the tool registry to return our mock tool
+        def mock_tool_getter(tool_name):
+            if tool_name == "github_repository":
+                return mock_github_tool
+            return None
+
+        mock_get_tool.side_effect = mock_tool_getter
 
         # Act
         result = await start_review_node(state)
@@ -356,68 +388,67 @@ class TestStartReviewNode:
         assert isinstance(result, dict)
         assert "current_step" in result
         assert result["current_step"] == "analyze_code"
+        assert "repository_info" in result
+        assert "enabled_tools" in result
+        assert result["status"] == ReviewStatus.FETCHING_REPOSITORY
+
+        # Verify the GitHub tool was called
+        mock_github_tool._arun.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_start_review_node_with_debugging(self):
+    @patch('tools.registry.ToolRegistry.get_tool')
+    async def test_start_review_node_with_debugging(self, mock_get_tool):
         """Test start_review_node with comprehensive debugging breakpoints."""
         # Arrange - Create realistic test state
         state = NodeTestFixtures.create_start_review_state()
 
-        # Add debugging context
-        test_context = {
-            "test_name": "test_start_review_node_with_debugging",
-            "test_purpose": "Validate repository fetching with debugging breakpoints",
-            "expected_breakpoints": [
-                "1_initial_state_validation",
-                "2_url_validation_success",
-                "3_tool_registry_init",
-                "4_before_github_api_call",
-                "5_after_github_api_call",
-                "6_repository_info_extraction",
-                "7_tool_selection_final",
-                "8_final_success_state"
-            ]
+        # Create a mock GitHub tool
+        mock_github_tool = AsyncMock()
+        mock_github_tool._arun.return_value = {
+            "success": True,
+            "result": {
+                "name": "test-repo",
+                "full_name": "test/test-repo",
+                "description": "Test repository",
+                "language": "Python",
+                "stars": 42,
+                "forks": 7,
+                "files": [
+                    {"name": "main.py", "type": "file"},
+                    {"name": "requirements.txt", "type": "file"},
+                    {"name": "README.md", "type": "file"}
+                ]
+            }
         }
 
-        # 🔍 DEBUG BREAKPOINT: Test Start
-        repo_debugger.debug_breakpoint(
-            "test_start",
-            state,
-            test_context
-        )
+        # Mock the tool registry to return our mock tool
+        def mock_tool_getter(tool_name):
+            if tool_name == "github_repository":
+                return mock_github_tool
+            return None
+
+        mock_get_tool.side_effect = mock_tool_getter
+
+        # Disable interactive debugging for tests
+        from debug.repository_debugging import repo_debugger
+        repo_debugger.set_debug_enabled(False)
 
         # Act - Execute the node with debugging
         result = await start_review_node(state)
 
-        # 🔍 DEBUG BREAKPOINT: Test Result Analysis
-        repo_debugger.debug_breakpoint(
-            "test_result_analysis",
-            result,
-            {
-                "test_completed": True,
-                "result_keys": list(result.keys()) if result else [],
-                "success": result.get("status") != ReviewStatus.FAILED,
-                "debug_session": repo_debugger.debug_session_id
-            }
-        )
-
         # Assert - Validate results with debugging context
         assert isinstance(result, dict), "Result should be a dictionary"
         assert "current_step" in result, "Result should contain current_step"
+        assert result["current_step"] == "analyze_code", "Should proceed to analyze_code step"
         assert "status" in result, "Result should contain status"
         assert "repository_info" in result, "Result should contain repository_info"
         assert "enabled_tools" in result, "Result should contain enabled_tools"
 
-        # Validate that debugging breakpoints were hit
-        assert len(repo_debugger.breakpoint_history) > 0, "Debugging breakpoints should have been triggered"
+        # Validate that debugging breakpoints were recorded (but not executed interactively)
+        assert len(repo_debugger.breakpoint_history) > 0, "Debugging breakpoints should have been recorded"
 
-        # Print debugging summary for test analysis
-        print(f"\n🔍 Debugging Test Summary:")
-        print(f"   Debug Session: {repo_debugger.debug_session_id}")
-        print(f"   Breakpoints Hit: {len(repo_debugger.breakpoint_history)}")
-        print(f"   Test Result: {'✅ PASSED' if result.get('status') != ReviewStatus.FAILED else '❌ FAILED'}")
-
-        repo_debugger.print_debug_summary()
+        # Validate GitHub tool was called
+        mock_github_tool._arun.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_start_review_node_input_validation(self):
@@ -484,10 +515,37 @@ class TestStartReviewNode:
         assert snapshot["node_name"] == "start_review_node"
 
     @pytest.mark.asyncio
-    async def test_start_review_node_regression_snapshot(self):
+    @patch('tools.registry.ToolRegistry.get_tool')
+    async def test_start_review_node_regression_snapshot(self, mock_get_tool):
         """Test regression testing with state snapshots for start_review_node."""
         # Arrange
         state = NodeTestFixtures.create_start_review_state()
+
+        # Create a mock GitHub tool
+        mock_github_tool = AsyncMock()
+        mock_github_tool._arun.return_value = {
+            "success": True,
+            "result": {
+                "name": "test-repo",
+                "full_name": "test/test-repo",
+                "description": "Test repository",
+                "language": "Python",
+                "stars": 42,
+                "forks": 7,
+                "files": [
+                    {"name": "main.py", "type": "file"},
+                    {"name": "requirements.txt", "type": "file"}
+                ]
+            }
+        }
+
+        # Mock the tool registry to return our mock tool
+        def mock_tool_getter(tool_name):
+            if tool_name == "github_repository":
+                return mock_github_tool
+            return None
+
+        mock_get_tool.side_effect = mock_tool_getter
 
         # Act
         result = await start_review_node(state)
@@ -503,8 +561,36 @@ class TestStartReviewNode:
         assert snapshot["output"]["current_step"] == "analyze_code"
 
     @pytest.mark.asyncio
-    async def test_start_review_node_with_different_repository_types(self):
+    @patch('tools.registry.ToolRegistry.get_tool')
+    async def test_start_review_node_with_different_repository_types(self, mock_get_tool):
         """Test start_review_node with different repository configurations."""
+        # Create a mock GitHub tool
+        mock_github_tool = AsyncMock()
+        mock_github_tool._arun.return_value = {
+            "success": True,
+            "result": {
+                "name": "test-repo",
+                "full_name": "test/test-repo",
+                "description": "Test repository",
+                "language": "Python",
+                "stars": 42,
+                "forks": 7,
+                "files": [
+                    {"name": "main.py", "type": "file"},
+                    {"name": "package.json", "type": "file"},
+                    {"name": "requirements.txt", "type": "file"}
+                ]
+            }
+        }
+
+        # Mock the tool registry to return our mock tool
+        def mock_tool_getter(tool_name):
+            if tool_name == "github_repository":
+                return mock_github_tool
+            return None
+
+        mock_get_tool.side_effect = mock_tool_getter
+
         # Test with different repository types
         test_cases = [
             {"repository_type": "python", "repository_url": "https://github.com/test/python-repo"},
@@ -894,9 +980,41 @@ class TestNodeDependencyMocking:
 class TestNodeRegressionSuite:
     """Comprehensive regression testing suite with state snapshots."""
 
+    def setup_method(self):
+        """Setup method to disable debugging for all tests."""
+        from debug.repository_debugging import repo_debugger
+        repo_debugger.set_debug_enabled(False)
+
     @pytest.mark.asyncio
-    async def test_all_nodes_regression_snapshots(self):
+    @patch('tools.registry.ToolRegistry.get_tool')
+    async def test_all_nodes_regression_snapshots(self, mock_get_tool):
         """Test all nodes and create regression snapshots."""
+        # Create a mock GitHub tool
+        mock_github_tool = AsyncMock()
+        mock_github_tool._arun.return_value = {
+            "success": True,
+            "result": {
+                "name": "test-repo",
+                "full_name": "test/test-repo",
+                "description": "Test repository",
+                "language": "Python",
+                "stars": 42,
+                "forks": 7,
+                "files": [
+                    {"name": "main.py", "type": "file"},
+                    {"name": "requirements.txt", "type": "file"}
+                ]
+            }
+        }
+
+        # Mock the tool registry to return our mock tool
+        def mock_tool_getter(tool_name):
+            if tool_name == "github_repository":
+                return mock_github_tool
+            return None
+
+        mock_get_tool.side_effect = mock_tool_getter
+
         # Test data for all nodes
         node_test_data = [
             {
@@ -972,9 +1090,41 @@ class TestNodeRegressionSuite:
 class TestNodeIntegrationScenarios:
     """Test nodes in realistic integration scenarios."""
 
+    def setup_method(self):
+        """Setup method to disable debugging for all tests."""
+        from debug.repository_debugging import repo_debugger
+        repo_debugger.set_debug_enabled(False)
+
     @pytest.mark.asyncio
-    async def test_complete_workflow_node_sequence(self):
+    @patch('tools.registry.ToolRegistry.get_tool')
+    async def test_complete_workflow_node_sequence(self, mock_get_tool):
         """Test complete sequence of node executions."""
+        # Create a mock GitHub tool
+        mock_github_tool = AsyncMock()
+        mock_github_tool._arun.return_value = {
+            "success": True,
+            "result": {
+                "name": "test-repo",
+                "full_name": "test/test-repo",
+                "description": "Test repository",
+                "language": "Python",
+                "stars": 42,
+                "forks": 7,
+                "files": [
+                    {"name": "main.py", "type": "file"},
+                    {"name": "requirements.txt", "type": "file"}
+                ]
+            }
+        }
+
+        # Mock the tool registry to return our mock tool
+        def mock_tool_getter(tool_name):
+            if tool_name == "github_repository":
+                return mock_github_tool
+            return None
+
+        mock_get_tool.side_effect = mock_tool_getter
+
         # Start with initial state
         initial_state = NodeTestFixtures.create_start_review_state()
 

@@ -5,18 +5,35 @@ Provides comprehensive debugging support for start_review_node.
 
 import json
 import pprint
+import os
 from typing import Dict, Any, List, Optional
 from datetime import datetime
 from logging_config import get_logger
 
 logger = get_logger(__name__)
 
+# Environment-based debugging control
+DEBUG_ENABLED = os.getenv("ENABLE_DEBUG_BREAKPOINTS", "false").lower() in ("true", "1", "yes")
+CI_ENVIRONMENT = os.getenv("CI", "false").lower() in ("true", "1", "yes")
+PYTEST_RUNNING = "PYTEST_CURRENT_TEST" in os.environ
+
 class RepositoryDebugger:
     """Comprehensive debugging utilities for repository operations."""
-    
+
     def __init__(self):
         self.debug_session_id = datetime.now().strftime("%Y%m%d_%H%M%S")
         self.breakpoint_history = []
+        self._debug_enabled_override = None  # For programmatic control
+
+    def set_debug_enabled(self, enabled: bool) -> None:
+        """Programmatically enable/disable debugging breakpoints."""
+        self._debug_enabled_override = enabled
+
+    def is_debug_enabled(self) -> bool:
+        """Check if debugging breakpoints should be active."""
+        if self._debug_enabled_override is not None:
+            return self._debug_enabled_override
+        return DEBUG_ENABLED and not CI_ENVIRONMENT and not PYTEST_RUNNING
         
     def debug_breakpoint(self, step_name: str, state: Dict[str, Any], 
                         context: Optional[Dict[str, Any]] = None) -> None:
@@ -52,9 +69,14 @@ class RepositoryDebugger:
         print(f"📊 State Keys: {list(state.keys()) if state else []}")
         if context:
             print(f"🔧 Context: {context}")
-        
-        # Breakpoint for debugger - developers can step through here
-        breakpoint()  # This will pause execution in the debugger
+
+        # Conditional breakpoint - only activate in development environments
+        if self.is_debug_enabled():
+            # Breakpoint for debugger - developers can step through here
+            breakpoint()  # This will pause execution in the debugger
+        else:
+            # In CI/test environments, just log the debugging information
+            logger.info(f"Debug breakpoint hit: {step_name} (breakpoint skipped in CI/test mode)")
         
     def inspect_repository_url(self, repository_url: str) -> Dict[str, Any]:
         """Inspect and validate repository URL format."""

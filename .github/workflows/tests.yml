@@ -21,6 +21,8 @@ env:
   JIRA_URL: "https://test.atlassian.net"
   JIRA_USERNAME: "test@example.com"
   JIRA_API_TOKEN: "test-jira-token"
+  # Disable debugging breakpoints in CI environment
+  ENABLE_DEBUG_BREAKPOINTS: "false"
 
 jobs:
   # Fast-fail job to catch obvious issues quickly

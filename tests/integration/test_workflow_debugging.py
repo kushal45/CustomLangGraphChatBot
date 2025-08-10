@@ -148,27 +148,61 @@ class WorkflowTestFixtures:
 
 class TestWorkflowIntegration:
     """Comprehensive workflow integration tests."""
-    
+
+    def setup_method(self):
+        """Setup method to disable debugging and configure mocks for all tests."""
+        # Disable debugging for integration tests
+        from debug.repository_debugging import repo_debugger
+        repo_debugger.set_debug_enabled(False)
+
     @pytest.fixture
     def initial_state(self):
         """Provide initial state for tests."""
         return WorkflowTestFixtures.create_initial_state()
-    
+
     @pytest.fixture
     def repository_info(self):
         """Provide repository info for tests."""
         return WorkflowTestFixtures.create_repository_info()
-    
+
     @pytest.fixture
     def tool_results(self):
         """Provide tool results for tests."""
         return WorkflowTestFixtures.create_tool_results()
-    
+
     @pytest.mark.asyncio
-    async def test_complete_workflow_execution_success(self, initial_state):
+    @patch('tools.registry.ToolRegistry.get_tool')
+    async def test_complete_workflow_execution_success(self, mock_get_tool, initial_state):
         """Test complete successful workflow execution from start to finish."""
         logger.info("Testing complete workflow execution - success path")
-        
+
+        # Create a mock GitHub tool
+        mock_github_tool = AsyncMock()
+        mock_github_tool._arun.return_value = {
+            "success": True,
+            "result": {
+                "name": "integration-repo",
+                "full_name": "test/integration-repo",
+                "description": "Integration test repository",
+                "language": "Python",
+                "stars": 100,
+                "forks": 20,
+                "files": [
+                    {"name": "main.py", "type": "file"},
+                    {"name": "requirements.txt", "type": "file"},
+                    {"name": "README.md", "type": "file"}
+                ]
+            }
+        }
+
+        # Mock the tool registry to return our mock tool
+        def mock_tool_getter(tool_name):
+            if tool_name == "github_repository":
+                return mock_github_tool
+            return None
+
+        mock_get_tool.side_effect = mock_tool_getter
+
         # Track execution steps
         execution_steps = []
         current_state = initial_state.copy()
@@ -246,10 +280,38 @@ class TestWorkflowIntegration:
         logger.info("Workflow error handling test passed")
     
     @pytest.mark.asyncio
-    async def test_workflow_state_transitions(self, initial_state):
+    @patch('tools.registry.ToolRegistry.get_tool')
+    async def test_workflow_state_transitions(self, mock_get_tool, initial_state):
         """Test all possible workflow state transitions."""
         logger.info("Testing workflow state transitions")
-        
+
+        # Create a mock GitHub tool
+        mock_github_tool = AsyncMock()
+        mock_github_tool._arun.return_value = {
+            "success": True,
+            "result": {
+                "name": "integration-repo",
+                "full_name": "test/integration-repo",
+                "description": "Integration test repository",
+                "language": "Python",
+                "stars": 100,
+                "forks": 20,
+                "files": [
+                    {"name": "main.py", "type": "file"},
+                    {"name": "requirements.txt", "type": "file"},
+                    {"name": "README.md", "type": "file"}
+                ]
+            }
+        }
+
+        # Mock the tool registry to return our mock tool
+        def mock_tool_getter(tool_name):
+            if tool_name == "github_repository":
+                return mock_github_tool
+            return None
+
+        mock_get_tool.side_effect = mock_tool_getter
+
         state_transitions = []
         current_state = initial_state.copy()
         
