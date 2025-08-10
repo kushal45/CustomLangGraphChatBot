@@ -616,16 +616,46 @@ class TestAnalyzeCodeNode:
     @pytest.mark.asyncio
     async def test_analyze_code_node_basic_execution(self):
         """Test basic execution of analyze_code_node."""
-        # Arrange
-        state = NodeTestFixtures.create_analyze_code_state()
+        # Arrange - Create state with proper repository_info structure for static analysis
+        state = {
+            "repository_url": "https://github.com/test/python-repo",
+            "current_step": "analyze_code",
+            "repository_info": {
+                "name": "python-repo",
+                "language": "Python",
+                "files": [
+                    {
+                        "name": "main.py",
+                        "type": "file",
+                        "content": "import os\n\ndef main():\n    print('Hello World')\n\nif __name__ == '__main__':\n    main()\n"
+                    },
+                    {
+                        "name": "utils.py",
+                        "type": "file",
+                        "content": "def helper_function():\n    return 'helper'\n"
+                    }
+                ]
+            }
+        }
 
-        # Act
-        result = await analyze_code_node(state)
+        # Mock the static analysis framework
+        with patch('tools.static_analysis_integration.analyze_repository_with_static_analysis') as mock_analyze:
+            mock_analyze.return_value = {
+                "current_step": "generate_report",
+                "analysis_results": {
+                    "static_analysis": {
+                        "summary": {"total_issues": 0, "languages_analyzed": 1}
+                    }
+                }
+            }
 
-        # Assert
-        assert isinstance(result, dict)
-        assert "current_step" in result
-        assert result["current_step"] == "generate_report"
+            # Act
+            result = await analyze_code_node(state)
+
+            # Assert
+            assert isinstance(result, dict)
+            assert "current_step" in result
+            assert result["current_step"] == "generate_report"
 
     @pytest.mark.asyncio
     async def test_analyze_code_node_input_validation(self):
@@ -689,14 +719,40 @@ class TestAnalyzeCodeNode:
         ]
 
         for case in test_cases:
-            state = NodeTestFixtures.create_analyze_code_state()
-            state["enabled_tools"] = case["enabled_tools"]
+            # Create state with proper repository_info structure
+            state = {
+                "repository_url": "https://github.com/test/python-repo",
+                "current_step": "analyze_code",
+                "enabled_tools": case["enabled_tools"],
+                "repository_info": {
+                    "name": "python-repo",
+                    "language": "Python",
+                    "files": [
+                        {
+                            "name": "main.py",
+                            "type": "file",
+                            "content": "print('Hello World')"
+                        }
+                    ]
+                }
+            }
 
-            result = await analyze_code_node(state)
+            # Mock the static analysis framework
+            with patch('tools.static_analysis_integration.analyze_repository_with_static_analysis') as mock_analyze:
+                mock_analyze.return_value = {
+                    "current_step": "generate_report",
+                    "analysis_results": {
+                        "static_analysis": {
+                            "summary": {"total_issues": 0, "languages_analyzed": 1}
+                        }
+                    }
+                }
 
-            assert isinstance(result, dict)
-            assert "current_step" in result
-            assert result["current_step"] == "generate_report"
+                result = await analyze_code_node(state)
+
+                assert isinstance(result, dict)
+                assert "current_step" in result
+                assert result["current_step"] == "generate_report"
 
 
 class TestGenerateReportNode:
@@ -987,7 +1043,8 @@ class TestNodeRegressionSuite:
 
     @pytest.mark.asyncio
     @patch('tools.registry.ToolRegistry.get_tool')
-    async def test_all_nodes_regression_snapshots(self, mock_get_tool):
+    @patch('tools.static_analysis_integration.analyze_repository_with_static_analysis')
+    async def test_all_nodes_regression_snapshots(self, mock_static_analysis, mock_get_tool):
         """Test all nodes and create regression snapshots."""
         # Create a mock GitHub tool
         mock_github_tool = AsyncMock()
@@ -1015,6 +1072,16 @@ class TestNodeRegressionSuite:
 
         mock_get_tool.side_effect = mock_tool_getter
 
+        # Mock static analysis framework for analyze_code_node
+        mock_static_analysis.return_value = {
+            "current_step": "generate_report",
+            "analysis_results": {
+                "static_analysis": {
+                    "summary": {"total_issues": 0, "languages_analyzed": 1}
+                }
+            }
+        }
+
         # Test data for all nodes
         node_test_data = [
             {
@@ -1025,7 +1092,21 @@ class TestNodeRegressionSuite:
             },
             {
                 "node_func": analyze_code_node,
-                "state": NodeTestFixtures.create_analyze_code_state(),
+                "state": {
+                    "repository_url": "https://github.com/test/python-repo",
+                    "current_step": "analyze_code",
+                    "repository_info": {
+                        "name": "python-repo",
+                        "language": "Python",
+                        "files": [
+                            {
+                                "name": "main.py",
+                                "type": "file",
+                                "content": "print('Hello World')"
+                            }
+                        ]
+                    }
+                },
                 "expected_next_step": "generate_report",
                 "node_name": "analyze_code_node"
             },

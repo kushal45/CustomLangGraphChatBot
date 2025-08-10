@@ -383,10 +383,21 @@ class TestWorkflowIntegration:
         logger.info("Workflow conditional logic test passed")
     
     @pytest.mark.asyncio
-    async def test_workflow_performance_with_realistic_data(self, initial_state, repository_info, tool_results):
+    @patch('tools.static_analysis_integration.analyze_repository_with_static_analysis')
+    async def test_workflow_performance_with_realistic_data(self, mock_static_analysis, initial_state, repository_info, tool_results):
         """Test workflow performance with realistic data volumes."""
         logger.info("Testing workflow performance with realistic data")
-        
+
+        # Mock static analysis framework
+        mock_static_analysis.return_value = {
+            "current_step": "generate_report",
+            "analysis_results": {
+                "static_analysis": {
+                    "summary": {"total_issues": 0, "languages_analyzed": 1}
+                }
+            }
+        }
+
         # Start profiling session
         profiler = get_profiler()
         session_id = profiler.start_profiling_session("Workflow Performance Test")
@@ -433,10 +444,21 @@ class TestWorkflowIntegration:
             raise
     
     @pytest.mark.asyncio
-    async def test_workflow_data_flow_integrity(self, initial_state):
+    @patch('tools.static_analysis_integration.analyze_repository_with_static_analysis')
+    async def test_workflow_data_flow_integrity(self, mock_static_analysis, initial_state):
         """Test data flow integrity throughout the workflow."""
         logger.info("Testing workflow data flow integrity")
-        
+
+        # Mock static analysis framework
+        mock_static_analysis.return_value = {
+            "current_step": "generate_report",
+            "analysis_results": {
+                "static_analysis": {
+                    "summary": {"total_issues": 0, "languages_analyzed": 1}
+                }
+            }
+        }
+
         # Use serializer to track data integrity
         serializer = get_serializer()
         current_state = initial_state.copy()
@@ -774,9 +796,20 @@ class TestWorkflowPerformanceIntegration:
     """Test workflow performance under various conditions."""
 
     @pytest.mark.asyncio
-    async def test_workflow_performance_under_load(self):
+    @patch('tools.static_analysis_integration.analyze_repository_with_static_analysis')
+    async def test_workflow_performance_under_load(self, mock_static_analysis):
         """Test workflow performance under simulated load."""
         logger.info("Testing workflow performance under load")
+
+        # Mock static analysis framework
+        mock_static_analysis.return_value = {
+            "current_step": "generate_report",
+            "analysis_results": {
+                "static_analysis": {
+                    "summary": {"total_issues": 0, "languages_analyzed": 1}
+                }
+            }
+        }
 
         initial_state = WorkflowTestFixtures.create_initial_state()
 
@@ -814,9 +847,20 @@ class TestWorkflowPerformanceIntegration:
         logger.info(f"Performance under load test passed - Avg: {avg_time:.3f}s, Range: {min_time:.3f}s-{max_time:.3f}s")
 
     @pytest.mark.asyncio
-    async def test_workflow_memory_efficiency(self):
+    @patch('tools.static_analysis_integration.analyze_repository_with_static_analysis')
+    async def test_workflow_memory_efficiency(self, mock_static_analysis):
         """Test workflow memory efficiency and cleanup."""
         logger.info("Testing workflow memory efficiency")
+
+        # Mock static analysis framework
+        mock_static_analysis.return_value = {
+            "current_step": "generate_report",
+            "analysis_results": {
+                "static_analysis": {
+                    "summary": {"total_issues": 0, "languages_analyzed": 1}
+                }
+            }
+        }
 
         import psutil
         import gc
@@ -862,9 +906,20 @@ class TestWorkflowExternalToolIntegration:
     """Test workflow integration with external tools."""
 
     @pytest.mark.asyncio
-    async def test_external_tool_integration_simulation(self):
+    @patch('tools.static_analysis_integration.analyze_repository_with_static_analysis')
+    async def test_external_tool_integration_simulation(self, mock_static_analysis):
         """Test integration with simulated external tools."""
         logger.info("Testing external tool integration simulation")
+
+        # Mock static analysis framework
+        mock_static_analysis.return_value = {
+            "current_step": "generate_report",
+            "analysis_results": {
+                "static_analysis": {
+                    "summary": {"total_issues": 0, "languages_analyzed": 1}
+                }
+            }
+        }
 
         initial_state = WorkflowTestFixtures.create_initial_state()
         tool_results = WorkflowTestFixtures.create_tool_results()

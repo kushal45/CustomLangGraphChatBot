@@ -606,7 +606,7 @@ async def analyze_code_node(state: ReviewState) -> Dict[str, Any]:
         {
             "step": "Starting comprehensive static analysis",
             "repository_url": state.get("repository_url", ""),
-            "repository_files": len(state.get("repository_info", {}).get("files", [])),
+            "repository_files": len((state.get("repository_info") or {}).get("files", [])),
             "analysis_type": "language_agnostic_static_analysis"
         }
     )
