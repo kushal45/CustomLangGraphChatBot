@@ -569,19 +569,193 @@ async def start_review_node(state: ReviewState) -> Dict[str, Any]:
 
 
 async def analyze_code_node(state: ReviewState) -> Dict[str, Any]:
-    """Analyze the code in the repository."""
-    logger.info("Starting code analysis", extra={
+    """
+    Analyze the repository code using language-agnostic static analysis tools.
+
+    This node performs comprehensive code analysis including:
+    - Language-agnostic static analysis (Pylint, ESLint, etc.)
+    - Code quality metrics across multiple languages
+    - Security vulnerability detection
+    - Architecture and maintainability analysis
+    - Comprehensive state tracking and debugging
+
+    The implementation follows SOLID principles and supports extensibility
+    for new programming languages and analysis tools.
+
+    Args:
+        state: Current review state containing repository information
+
+    Returns:
+        Updated state with comprehensive analysis results
+    """
+    from tools.static_analysis_integration import analyze_repository_with_static_analysis
+    from debug.repository_debugging import repo_debugger
+
+    logger.info("Starting language-agnostic code analysis", extra={
         "workflow_step": "analyze_code",
         "current_step": state.get("current_step"),
-        "state_keys": list(state.keys()) if state else []
+        "state_keys": list(state.keys()) if state else [],
+        "repository_url": state.get("repository_url", ""),
+        "analysis_type": "language_agnostic_static_analysis"
     })
-    # Placeholder: Add code analysis logic
-    result = {"current_step": "generate_report"}
-    logger.info("Code analysis completed", extra={
-        "workflow_step": "analyze_code",
-        "result": result
-    })
-    return result
+
+    # 🔍 DEBUG BREAKPOINT: Analysis Start
+    repo_debugger.debug_breakpoint(
+        "code_analysis_start",
+        state,
+        {
+            "step": "Starting comprehensive static analysis",
+            "repository_url": state.get("repository_url", ""),
+            "repository_files": len(state.get("repository_info", {}).get("files", [])),
+            "analysis_type": "language_agnostic_static_analysis"
+        }
+    )
+
+    try:
+        # Get repository information for validation
+        repository_info = state.get("repository_info", {})
+        repository_url = state.get("repository_url", "")
+
+        # 🔍 DEBUG BREAKPOINT: Repository Info Validation
+        repo_debugger.debug_breakpoint(
+            "repository_validation",
+            state,
+            {
+                "step": "Validating repository information for analysis",
+                "repository_url": repository_url,
+                "has_repository_info": bool(repository_info),
+                "file_count": len(repository_info.get("files", [])),
+                "repository_language": repository_info.get("language", "unknown")
+            }
+        )
+
+        # Validate that we have repository information
+        if not repository_info or not repository_info.get("files"):
+            error_msg = "No repository information or files available for analysis"
+            logger.error(error_msg, extra={
+                "workflow_step": "analyze_code",
+                "error": error_msg,
+                "repository_info_available": bool(repository_info)
+            })
+
+            # 🔍 DEBUG BREAKPOINT: Validation Error
+            repo_debugger.debug_breakpoint(
+                "validation_error",
+                state,
+                {
+                    "step": "Repository validation failed",
+                    "error": error_msg,
+                    "repository_info_keys": list(repository_info.keys()) if repository_info else []
+                }
+            )
+
+            return {
+                "current_step": "error_handler",
+                "error": error_msg,
+                "error_type": "validation_error"
+            }
+
+        # 🔍 DEBUG BREAKPOINT: Before Static Analysis
+        repo_debugger.debug_breakpoint(
+            "before_static_analysis",
+            state,
+            {
+                "step": "Initiating language-agnostic static analysis",
+                "files_to_analyze": len(repository_info.get("files", [])),
+                "analysis_framework": "static_analysis_framework",
+                "integration_layer": "static_analysis_integration"
+            }
+        )
+
+        # Execute comprehensive static analysis using our language-agnostic framework
+        logger.info("Executing language-agnostic static analysis...", extra={
+            "workflow_step": "analyze_code",
+            "files_count": len(repository_info.get("files", [])),
+            "repository_language": repository_info.get("language", "unknown")
+        })
+
+        updated_state = await analyze_repository_with_static_analysis(state)
+
+        # 🔍 DEBUG BREAKPOINT: After Static Analysis
+        repo_debugger.debug_breakpoint(
+            "after_static_analysis",
+            updated_state,
+            {
+                "step": "Static analysis completed",
+                "analysis_successful": "analysis_results" in updated_state,
+                "next_step": updated_state.get("current_step", "unknown"),
+                "total_issues": updated_state.get("analysis_results", {}).get("static_analysis", {}).get("summary", {}).get("total_issues", 0),
+                "languages_analyzed": updated_state.get("analysis_results", {}).get("static_analysis", {}).get("summary", {}).get("languages_analyzed", 0)
+            }
+        )
+
+        # Check if analysis was successful
+        if updated_state.get("current_step") == "error_handler":
+            logger.error("Static analysis failed", extra={
+                "workflow_step": "analyze_code",
+                "error": updated_state.get("error", {}).get("message", "Unknown error")
+            })
+            return updated_state
+
+        # Extract results for logging
+        analysis_summary = updated_state.get("analysis_results", {}).get("static_analysis", {}).get("summary", {})
+
+        # 🔍 DEBUG BREAKPOINT: Analysis Success
+        repo_debugger.debug_breakpoint(
+            "analysis_success",
+            updated_state,
+            {
+                "step": "Code analysis completed successfully",
+                "analysis_summary": analysis_summary,
+                "next_step": updated_state.get("current_step"),
+                "status": updated_state.get("status")
+            }
+        )
+
+        logger.info("Language-agnostic code analysis completed successfully", extra={
+            "workflow_step": "analyze_code",
+            "total_issues": analysis_summary.get("total_issues", 0),
+            "languages_analyzed": analysis_summary.get("languages_analyzed", 0),
+            "tools_executed": analysis_summary.get("tools_executed", 0),
+            "next_step": updated_state.get("current_step")
+        })
+
+        # Return the result in the expected format
+        result = {
+            "current_step": updated_state.get("current_step", "generate_report"),
+            "analysis_results": updated_state.get("analysis_results", {}),
+            "analysis_metadata": updated_state.get("analysis_metadata", {}),
+            "status": updated_state.get("status", "analyzing_code")
+        }
+
+        return result
+
+    except Exception as e:
+        error_msg = f"Code analysis failed: {str(e)}"
+        logger.error(error_msg, extra={
+            "workflow_step": "analyze_code",
+            "error": error_msg,
+            "exception_type": type(e).__name__,
+            "repository_url": state.get("repository_url", "")
+        })
+
+        # 🔍 DEBUG BREAKPOINT: Analysis Error
+        repo_debugger.debug_breakpoint(
+            "analysis_error",
+            state,
+            {
+                "step": "Code analysis failed with exception",
+                "error": error_msg,
+                "exception_type": type(e).__name__,
+                "repository_url": state.get("repository_url", "")
+            }
+        )
+
+        return {
+            "current_step": "error_handler",
+            "error": error_msg,
+            "error_type": "analysis_exception"
+        }
 
 async def generate_report_node(state: ReviewState) -> Dict[str, Any]:
     """Generate a code review report."""
