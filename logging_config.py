@@ -121,7 +121,13 @@ class LoggingConfig:
         
         # Create log directory if it doesn't exist
         if self.enable_file_logging:
-            self.log_dir.mkdir(parents=True, exist_ok=True)
+            try:
+                self.log_dir.mkdir(parents=True, exist_ok=True)
+            except (OSError, PermissionError) as e:
+                # Handle read-only filesystem or permission issues
+                print(f"Warning: Cannot create log directory {self.log_dir}: {e}")
+                print("Disabling file logging and using console logging only.")
+                self.enable_file_logging = False
     
     def get_formatter(self, format_type: str = None) -> logging.Formatter:
         """Get appropriate formatter based on configuration."""
