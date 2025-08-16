@@ -46,7 +46,7 @@ def create_review_workflow() -> StateGraph:
             should_continue,
             {
                 'continue': "generate_report",
-                'error': "error_handler"
+                'error_handler': "error_handler"
             }
         )
         workflow.add_edge("generate_report", END)
