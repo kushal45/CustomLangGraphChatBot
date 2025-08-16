@@ -720,6 +720,58 @@ async def analyze_code_node(state: ReviewState) -> Dict[str, Any]:
             "next_step": updated_state.get("current_step")
         })
 
+        # ====================================================================
+        # AI Code Review
+        # ====================================================================
+        logger.info("Starting AI code review", extra={"workflow_step": "analyze_code"})
+
+        from tools.ai_analysis_tools import code_review_tool
+        from tools.github_tools import github_file_content_tool
+        import json
+
+        ai_analysis_results = {}
+        files_to_analyze = []
+        if repository_info and "contents" in repository_info:
+            for file_info in repository_info["contents"]:
+                if file_info["type"] == "file" and file_info["name"].endswith(".py"): # Simple filter for now
+                    files_to_analyze.append(file_info["path"])
+
+        for file_path in files_to_analyze:
+            logger.info(f"Analyzing file with AI: {file_path}", extra={"workflow_step": "analyze_code"})
+
+            # Fetch file content
+            file_content_query = json.dumps({
+                "repository_url": repository_url,
+                "file_path": file_path
+            })
+            file_content_result = await github_file_content_tool._arun(file_content_query)
+
+            if "error" in file_content_result:
+                logger.error(f"Failed to fetch content for {file_path}: {file_content_result['error']}", extra={"workflow_step": "analyze_code"})
+                continue
+
+            file_content = file_content_result.get("content", "")
+            if not file_content:
+                logger.warning(f"File content is empty for {file_path}", extra={"workflow_step": "analyze_code"})
+                continue
+
+            # Perform AI code review
+            ai_review_query = json.dumps({
+                "code": file_content,
+                "language": "python" # Should be dynamic
+            })
+            review_result = await code_review_tool._arun(ai_review_query)
+            ai_analysis_results[file_path] = review_result
+
+        # Update state with AI analysis results
+        if "analysis_results" not in updated_state:
+            updated_state["analysis_results"] = {}
+        if "ai_analysis" not in updated_state["analysis_results"]:
+            updated_state["analysis_results"]["ai_analysis"] = {}
+        updated_state["analysis_results"]["ai_analysis"] = ai_analysis_results
+        logger.info("AI code review completed", extra={"workflow_step": "analyze_code", "files_analyzed": len(ai_analysis_results)})
+
+
         # Return the result in the expected format
         result = {
             "current_step": updated_state.get("current_step", "generate_report"),
@@ -764,13 +816,67 @@ async def generate_report_node(state: ReviewState) -> Dict[str, Any]:
         "current_step": state.get("current_step"),
         "state_keys": list(state.keys()) if state else []
     })
-    # Placeholder: Add report generation logic
-    result = {"current_step": "complete"}
-    logger.info("Report generation completed", extra={
-        "workflow_step": "generate_report",
-        "result": result
+
+    from tools.ai_analysis_tools import code_review_tool
+    import json
+
+    analysis_results = state.get("analysis_results", {})
+    static_analysis = analysis_results.get("static_analysis", {})
+    ai_analysis = analysis_results.get("ai_analysis", {})
+
+    # 1. Format the results into a single string
+    report_content = "## Code Review Report\n\n"
+
+    report_content += "### Static Analysis Summary\n"
+    if static_analysis and static_analysis.get("summary"):
+        summary = static_analysis["summary"]
+        report_content += f"- Total Issues: {summary.get('total_issues', 0)}\n"
+        report_content += f"- Issues by Severity: {summary.get('issues_by_severity', {})}\n"
+
+    report_content += "\n### AI Analysis Summary\n"
+    if ai_analysis:
+        for file_path, review in ai_analysis.items():
+            report_content += f"#### File: {file_path}\n"
+            if "review" in review:
+                review_data = review["review"]
+                report_content += f"- Overall Score: {review_data.get('overall_score', 'N/A')}\n"
+                report_content += f"- Summary: {review_data.get('summary', 'N/A')}\n"
+                if "issues" in review_data:
+                    report_content += "- Issues:\n"
+                    for issue in review_data["issues"]:
+                        report_content += f"  - [{issue.get('severity')}] {issue.get('description')} (Suggestion: {issue.get('suggestion')})\n"
+
+    # 2. Use an AI tool to generate a summary
+    summary_prompt = f"""
+    Based on the following code analysis report, please provide a high-level summary.
+    Focus on the most critical issues and provide actionable recommendations.
+
+    Report:
+    {report_content}
+    """
+
+    ai_summary_query = json.dumps({
+        "code": "", # No code, just context
+        "context": summary_prompt
     })
-    return result
+
+    summary_result = await code_review_tool._arun(ai_summary_query)
+
+    final_report = {
+        "summary": summary_result.get("review", {}).get("summary", "Could not generate summary."),
+        "details": analysis_results
+    }
+
+    logger.info("Report generation completed", extra={
+        "workflow_step": "generate_report"
+    })
+
+    return {
+        "current_step": "complete",
+        "status": ReviewStatus.COMPLETED,
+        "final_report": final_report,
+        "report_generated": True
+    }
 
 async def error_handler_node(state: ReviewState) -> Dict[str, Any]:
     """Handle errors in the workflow."""
