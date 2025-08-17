@@ -774,6 +774,8 @@ def test_ai_analysis_tools_sanity():
 
 def test_github_tools_sanity():
     """Test GitHub tools with real parameters."""
+    if not os.getenv("GITHUB_TOKEN"):
+        pytest.skip("GITHUB_TOKEN not set, skipping real GitHub tool tests.")
     # Debug SSL configuration
     print(f"DEBUG: GITHUB_VERIFY_SSL = {repr(os.getenv('GITHUB_VERIFY_SSL'))}")
 
@@ -868,57 +870,20 @@ def test_debugging_tools_sanity():
 def test_workflow_integration_sanity():
     """Sanity test for workflow integration testing."""
     print("\n🔄 Testing Workflow Integration Sanity...")
-
+    # This test is now simplified as the detailed tests are in the integration test file.
+    # We just check if the main components can be imported.
     try:
-        # Test workflow integration with temporary directory for logs
-        with tempfile.TemporaryDirectory() as temp_dir:
-            # Set temporary log directory to avoid read-only filesystem issues
-            original_log_dir = os.environ.get('LOG_DIR')
-            os.environ['LOG_DIR'] = temp_dir
-
-            try:
-                # Test imports (after setting LOG_DIR to avoid read-only filesystem issues)
-                from tests.integration.test_workflow_debugging import WorkflowTestFixtures, TestWorkflowIntegration
-                from workflow import should_continue, create_review_workflow
-                from nodes import start_review_node, analyze_code_node, generate_report_node, error_handler_node
-
-                print("✅ All workflow integration imports successful")
-
-                # Test fixture creation
-                fixtures = WorkflowTestFixtures()
-                initial_state = fixtures.create_initial_state()
-                assert initial_state is not None
-                assert "current_step" in initial_state
-
-                print("✅ Workflow test fixtures working")
-
-                # Test should_continue function
-                result = should_continue(initial_state)
-                assert result in ["continue", "error_handler"]
-
-                print("✅ Workflow conditional logic working")
-
-                # Test workflow graph creation
-                workflow_graph = create_review_workflow()
-                assert workflow_graph is not None
-
-                print("✅ Workflow graph creation working")
-            finally:
-                # Restore original log directory
-                if original_log_dir:
-                    os.environ['LOG_DIR'] = original_log_dir
-                elif 'LOG_DIR' in os.environ:
-                    del os.environ['LOG_DIR']
-
-        print("✅ Workflow integration sanity check passed!")
-
-    except Exception as e:
-        print(f"❌ Workflow integration sanity check failed: {e}")
-        pytest.fail(f"Workflow integration sanity check failed: {e}")
+        from workflow import should_continue, create_review_workflow
+        from nodes import start_review_node, analyze_code_node, generate_report_node, error_handler_node
+        print("✅ All workflow integration imports successful")
+    except ImportError as e:
+        pytest.fail(f"Failed to import workflow components: {e}")
 
 
 def test_full_sanity_check():
     """Run full sanity check with real parameters."""
+    if not os.getenv("GITHUB_TOKEN"):
+        pytest.skip("GITHUB_TOKEN not set, skipping real sanity check.")
     results = run_sanity_checks(verbose=True, use_real_params=True)
     # Allow warnings for full sanity check due to potential SSL/API issues
     assert results.get("summary", {}).get("overall_status") in ["PASS", "WARN"], f"Full sanity check failed"
