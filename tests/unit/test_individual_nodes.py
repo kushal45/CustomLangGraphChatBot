@@ -173,6 +173,18 @@ class NodeTestFixtures:
             )
         }
         
+        analysis_results = AnalysisResults(
+            static_analysis={
+                "pylint": ToolResult(tool_name="pylint", success=True, result={}, error_message=None, execution_time=1.0, timestamp="")
+            },
+            ai_analysis={},
+            security_analysis={},
+            complexity_analysis=None,
+            overall_score=0.0,
+            summary="",
+            recommendations=[]
+        )
+
         return ReviewState(
             messages=[],
             current_step="generate_report",
@@ -184,7 +196,7 @@ class NodeTestFixtures:
             enabled_tools=["pylint_analysis", "code_review"],
             tool_results=tool_results,
             failed_tools=[],
-            analysis_results=None,
+            analysis_results=analysis_results,
             files_analyzed=["main.py", "tests/test_main.py"],
             total_files=2,
             review_config={"include_tests": True, "max_files": 100},
